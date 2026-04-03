@@ -1,0 +1,38 @@
+name: api-xamiot
+
+services:
+  api_xamiot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xamiot-api:latest
+    container_name: xamiot-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./secrets:/secrets:ro
+    networks:
+      - mosquitto_mqtt
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+
+      # Router UNIQUE (évite toute collision avec d'autres stacks)
+      - "traefik.http.routers.api-xamiot.rule=Host(`api.xamiot.com`)"
+      - "traefik.http.routers.api-xamiot.entrypoints=websecure"
+      - "traefik.http.routers.api-xamiot.tls=true"
+      - "traefik.http.routers.api-xamiot.tls.certresolver=le"
+
+      # Service UNIQUE
+      - "traefik.http.routers.api-xamiot.service=api-xamiot-svc"
+      - "traefik.http.services.api-xamiot-svc.loadbalancer.server.port=3000"
+
+networks:
+  mosquitto_mqtt:
+    external: true
+    name: mosquitto_mqtt
+  proxy:
+    external: true
+

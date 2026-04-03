@@ -1,0 +1,254 @@
+Je veux que tu réalises une évolution complète, propre et robuste de mon projet pour ajouter un outil d’envoi manuel de notifications push et/ou d’e-mails depuis le backoffice dans la page Notifications, sans rien casser de l’existant.
+
+Contexte important
+- Commence impérativement par auditer le code existant avant toute modification.
+- Identifie précisément :
+  - la structure actuelle du backoffice,
+  - les modèles de données liés aux utilisateurs, devices ESP, mobiles, notifications, mails et paramètres,
+  - les endpoints API existants,
+  - les services déjà présents pour APNS Apple, Firebase Google / FCM, envoi d’e-mails,
+  - les écrans de configuration existants,
+  - les dépendances et mécanismes déjà en place pour l’envoi de notifications.
+- Ne casse rien de l’existant.
+- Ne supprime pas de fonctionnalités existantes.
+- Si une partie actuelle est incomplète ou incohérente, corrige-la proprement mais uniquement si c’est nécessaire pour cette demande.
+- Toute modification doit être cohérente avec l’architecture actuelle du projet.
+- Si une refactorisation est utile, elle doit être limitée, justifiée et sécurisée.
+- Je veux des tests unitaires et des tests automatisés couvrant les nouveaux comportements.
+- Je veux également que tu exécutes ou prépares les tests automatisés nécessaires pour valider que rien n’est cassé.
+
+Objectif principal
+Mettre en place dans le backoffice un outil permettant d’envoyer manuellement :
+- des notifications push,
+- des e-mails,
+- ou les deux en même temps,
+
+avec un ciblage avancé des destinataires.
+
+Fonctionnalités attendues
+
+1. Nouveau module d’envoi manuel dans le backoffice
+Créer une nouvelle section claire dans le backoffice, par exemple :
+- “Campagnes manuelles”
+ou
+- “Envois manuels”
+
+Cette section doit permettre à un administrateur de :
+- choisir le type d’envoi :
+  - notification push seule,
+  - e-mail seul,
+  - push + e-mail,
+- définir le contenu du message,
+- sélectionner précisément les destinataires,
+- visualiser le ciblage avant envoi,
+- lancer l’envoi manuellement,
+- voir un retour détaillé sur le résultat de l’envoi.
+
+2. Ciblage des destinataires
+L’outil doit permettre de filtrer / sélectionner les destinataires selon plusieurs axes combinables.
+
+Je veux pouvoir cibler :
+- par type de device ESP,
+- par type de mobile,
+- tous les utilisateurs,
+- ou une sélection manuelle de personnes.
+
+Détail attendu :
+- filtre par type de device ESP,
+- filtre par type de mobile,
+- possibilité de sélectionner “tous”,
+- possibilité d’utiliser un moteur de recherche utilisateurs,
+- possibilité de cocher manuellement les utilisateurs à notifier.
+
+Important :
+- les filtres doivent pouvoir être combinés de façon logique et compréhensible,
+- il faut afficher clairement le nombre de personnes ciblées,
+- il faut permettre de prévisualiser la liste des utilisateurs trouvés,
+- il faut pouvoir sélectionner/désélectionner individuellement les utilisateurs,
+- il faut pouvoir “tout sélectionner” sur la liste filtrée,
+- il faut pouvoir conserver une sélection manuelle même après usage de filtres, si cela a du sens dans l’UX.
+
+3. Moteur de recherche utilisateurs
+Ajouter un moteur de recherche efficace dans cet outil d’envoi manuel.
+
+Le moteur de recherche doit permettre de rechercher dynamiquement sur des champs comme :
+- nom,
+- prénom,
+- e-mail,
+- device,
+- type de device,
+- type de mobile,
+- et autres champs utiles disponibles dans la base.
+
+Important :
+- les champs réellement interrogeables doivent être dynamiques selon les données existantes,
+- il faut s’appuyer sur les modèles actuels du projet,
+- ne pas coder en dur des hypothèses fausses sur les colonnes si elles n’existent pas,
+- si nécessaire, faire évoluer proprement le backend et la base pour permettre cette recherche,
+- l’interface doit être réactive et claire,
+- si le volume de données est important, prévoir pagination, debounce et optimisation côté API.
+
+4. Écran / UX de sélection
+Je veux une interface d’administration propre, claire et sécurisée avec par exemple :
+- une zone de filtres,
+- une zone de recherche,
+- une liste paginée ou tableau des utilisateurs ciblables,
+- des cases à cocher,
+- un résumé de la sélection,
+- un aperçu du message avant envoi,
+- une confirmation avant l’envoi définitif.
+
+Le tableau de sélection devrait idéalement afficher dynamiquement les informations utiles comme :
+- prénom,
+- nom,
+- e-mail,
+- type de mobile,
+- device(s),
+- type(s) de device,
+- statut éventuel utile,
+- présence ou non d’un token push,
+- présence ou non d’une adresse e-mail exploitable.
+
+5. Gestion de l’envoi push
+Pour les notifications push :
+- réutiliser autant que possible les mécanismes déjà existants,
+- supporter proprement Apple / APNS,
+- supporter proprement Firebase / Google / FCM,
+- gérer le ciblage selon la plateforme et les tokens disponibles,
+- journaliser les succès et échecs,
+- gérer proprement les cas où un utilisateur n’a pas de token valide,
+- ne pas bloquer l’envoi global si certains tokens sont invalides,
+- prévoir un retour d’exécution détaillé.
+
+6. Gestion de l’envoi e-mail
+Pour les e-mails :
+- réutiliser le service d’e-mail existant s’il existe,
+- sinon créer une implémentation propre cohérente avec le projet,
+- permettre sujet + contenu,
+- prévoir version texte / HTML si l’architecture actuelle le permet,
+- gérer les cas où l’utilisateur n’a pas d’e-mail valide,
+- journaliser les succès et échecs,
+- afficher un retour clair dans le backoffice.
+
+7. Déplacement des paramètres APNS / Firebase
+Je veux déplacer les éléments de configuration APNS Apple et Firebase Google dans la section “Paramètres”.
+
+Concrètement :
+- auditer où sont actuellement configurés ces éléments,
+- déplacer leur gestion dans une zone “Paramètres” cohérente du backoffice,
+- organiser cela proprement, par exemple :
+  - Paramètres > Notifications push > Apple APNS
+  - Paramètres > Notifications push > Google Firebase / FCM
+- s’assurer que ce déplacement ne casse pas le fonctionnement existant,
+- si nécessaire, faire une migration de structure/configuration propre,
+- préserver les valeurs existantes,
+- sécuriser l’affichage des secrets,
+- masquer correctement les clés sensibles,
+- éviter toute fuite de secrets côté frontend.
+
+8. Structure technique attendue
+Je veux une implémentation propre :
+- backend :
+  - endpoints admin dédiés,
+  - validations strictes,
+  - filtrage robuste,
+  - pagination si nécessaire,
+  - services d’envoi séparés et testables,
+  - logs clairs,
+- frontend backoffice :
+  - page dédiée,
+  - composants réutilisables,
+  - UX lisible,
+  - confirmation avant envoi,
+  - affichage détaillé du résultat,
+- base de données :
+  - ajouter uniquement ce qui est nécessaire,
+  - si journalisation ou historique d’envoi utile, le faire proprement,
+  - migrations idempotentes et sûres.
+
+9. Historique / traçabilité
+Je veux idéalement un historique des envois manuels avec au minimum :
+- date/heure,
+- administrateur à l’origine de l’envoi si cette information existe,
+- type d’envoi : push / mail / push+mail,
+- critères de ciblage,
+- nombre de destinataires ciblés,
+- nombre de succès,
+- nombre d’échecs,
+- détail minimal des erreurs.
+
+Si c’est pertinent dans l’architecture actuelle, créer un écran d’historique dans le backoffice.
+Si ce n’est pas possible immédiatement sans trop alourdir, au minimum journaliser proprement côté backend et structurer le code pour permettre cet historique.
+
+10. Contraintes de sécurité
+Très important :
+- aucune fuite de secrets APNS/Firebase,
+- aucun secret exposé inutilement au frontend,
+- validation stricte des accès admin,
+- protection contre envoi accidentel massif sans confirmation,
+- confirmation explicite avant l’envoi,
+- idéalement un résumé “X utilisateurs seront contactés” avant validation finale,
+- protéger les endpoints contre les appels non autorisés.
+
+11. Compatibilité avec l’existant
+Je veux que tu vérifies explicitement :
+- que l’inscription / gestion actuelle des devices mobiles continue de fonctionner,
+- que l’existant APNS / Firebase n’est pas cassé,
+- que la gestion actuelle des utilisateurs, devices, notifications et paramètres reste fonctionnelle,
+- que les autres écrans admin ne sont pas impactés,
+- que l’existant API mobile / ESP continue à fonctionner normalement.
+
+12. Ce que j’attends dans ta réponse
+Je veux que tu me fournisses :
+1. un audit rapide de l’existant lié à ce sujet,
+2. la stratégie de mise en œuvre retenue,
+3. la liste précise des fichiers modifiés,
+4. les migrations BD éventuelles,
+5. le code complet des parties modifiées si nécessaire,
+6. les nouveaux endpoints créés,
+7. les tests unitaires ajoutés,
+8. les tests automatisés/backoffice/API ajoutés,
+9. un récapitulatif clair de ce que tu as vérifié pour t’assurer que rien n’est cassé.
+
+13. Tests obligatoires
+Je veux impérativement :
+- des tests unitaires backend pour les filtres / ciblage / validations / services d’envoi,
+- des tests unitaires frontend si pertinent,
+- des tests d’intégration API pour la recherche, la sélection et l’envoi,
+- des tests automatisés sur les cas critiques,
+- des cas de tests sur :
+  - envoi push seul,
+  - envoi mail seul,
+  - envoi push + mail,
+  - filtre par type de device,
+  - filtre par type de mobile,
+  - sélection manuelle d’utilisateurs,
+  - recherche par nom / prénom / email,
+  - utilisateurs sans token push,
+  - utilisateurs sans email,
+  - mélange de destinataires valides / invalides,
+  - absence de droits admin,
+  - non-régression sur les paramètres APNS/Firebase déplacés.
+
+14. Méthode de travail
+Procède dans cet ordre :
+- audit,
+- conception,
+- modifications backend,
+- modifications frontend backoffice,
+- migrations éventuelles,
+- tests,
+- vérification de non-régression,
+- résumé final.
+
+Important :
+- ne pars pas sur des suppositions non vérifiées,
+- appuie-toi sur le code réel,
+- si une donnée comme “type de device” ou “type de mobile” n’existe pas encore clairement, analyse l’existant et implémente la solution la plus propre et évolutive,
+- documente les choix,
+- fais une implémentation sérieuse, maintenable et évolutive.
+
+Je veux une réalisation complète, robuste, propre, testée, et sans rien casser.
+
+
+              

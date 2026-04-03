@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Couleurs principales -->
+    <color name="primary">#2196F3</color>
+    <color name="primary_dark">#1976D2</color>
+    <color name="accent">#FF9800</color>
+
+    <!-- Couleurs de fond -->
+    <color name="background">#FFFFFF</color>
+    <color name="surface">#F5F5F5</color>
+    <color name="input_background">#FFFFFF</color>
+
+    <!-- Couleurs de texte -->
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="text_hint">#9E9E9E</color>
+
+    <!-- Couleurs d'état -->
+    <color name="error">#F44336</color>
+    <color name="success">#4CAF50</color>
+    <color name="warning">#FF9800</color>
+
+    <!-- Couleurs système -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+
+    <!-- Couleurs pour le Splash Screen -->
+    <color name="splash_background">#FFFFFF</color> <!-- 1E3A8A -->
+    <color name="splash_text">#000000</color>
+    <color name="splash_text_secondary">#000000</color>
+
+    <!-- Couleurs pour les toggles -->
+    <color name="switch_on_green">#34C759</color>
+    <color name="switch_off_thumb">#BDBDBD</color>
+
+    <color name="switch_on_green_track">#8034C759</color>
+    <color name="switch_off_track">#4DFFFFFF</color>
+
+</resources>

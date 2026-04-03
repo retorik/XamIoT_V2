@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="4dp"
+    app:cardBackgroundColor="#1E1E1E">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- En-tête : Nom + Indicateur -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <!-- Indicateur Online/Offline -->
+            <View
+                android:id="@+id/viewOnlineIndicator"
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_circle_green" />
+
+            <!-- Nom du Device -->
+            <TextView
+                android:id="@+id/tvDeviceName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                tools:text="Proto 0C" />
+
+            <!-- Badge Niveau Sonore -->
+            <TextView
+                android:id="@+id/tvLastDb"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_db_badge"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                tools:text="12 dB" />
+
+        </LinearLayout>
+
+        <!-- UID -->
+        <TextView
+            android:id="@+id/tvDeviceUid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textSize="14sp"
+            android:textColor="#B0B0B0"
+            android:fontFamily="monospace"
+            tools:text="UID: 0C784D******" />
+
+        <!-- Sparkline des 30 dernières mesures sonores -->
+        <com.xamiot.soundsense.ui.view.SoundSparklineView
+            android:id="@+id/sparkline"
+            android:layout_width="match_parent"
+            android:layout_height="28dp"
+            android:layout_marginTop="6dp"/>
+
+        <!-- Dernière connexion -->
+        <TextView
+            android:id="@+id/tvLastSeen"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="12sp"
+            android:textColor="#808080"
+            tools:text="Il y a 2 minutes" />
+
+        <!-- Dernière alerte -->
+        <TextView
+            android:id="@+id/tvLastAlert"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="12sp"
+            android:textColor="#FF9800"
+            android:drawablePadding="4dp"
+            android:visibility="gone"
+            tools:visibility="visible"
+            tools:text="🔔 Alerte il y a 5 min : 85 dB"
+            app:drawableStartCompat="@android:drawable/ic_lock_idle_alarm" />
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

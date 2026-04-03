@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 15, 23, 42;
+  --background-rgb: 248, 250, 252;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+}
+
+/* Renforcement global des contrastes */
+@layer utilities {
+  .border-slate-200 { border-color: rgb(186 191 206) !important; }
+  .border-slate-100 { border-color: rgb(210 215 226) !important; }
+  .text-slate-400   { color: rgb(120 130 150) !important; }
+  .text-slate-500   { color: rgb(90 100 118) !important; }
+  .bg-slate-50      { background-color: rgb(244 246 250) !important; }
+  .placeholder\:text-slate-400::placeholder { color: rgb(140 150 168) !important; }
+}

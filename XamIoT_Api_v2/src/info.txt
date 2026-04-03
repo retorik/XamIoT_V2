@@ -1,0 +1,20 @@
+mot de passe mqtt : XamIOT_MQTT_API_2025!2Dje!
+pass hsh : $2b$10$WK0nfKmq0e69N2grvvOAcut5TBrrqkUGY6AEr4itjlSOilDJPB89a
+scipt :
+node - <<'EOF'
+(async () => {
+  const bcrypt = (await import('bcryptjs')).default;
+  const pwd = 'XamIOT_MQTT_API_2025!2Dje!';
+  const hash = await bcrypt.hash(pwd, 10);
+  console.log('Hash Bcrypt :', hash);
+})();
+EOF
+
+
+
+pour pousser le commit :
+ git push origin main
+
+ pour recuperer tout cote serveur et relancer
+
+ dernier modif 23/11/2025 id/pass individuel par Sensor

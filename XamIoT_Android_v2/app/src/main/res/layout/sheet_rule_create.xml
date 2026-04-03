@@ -1,0 +1,406 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@android:color/transparent"
+    android:padding="12dp">
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardSheet"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="20dp"
+        app:cardUseCompatPadding="true"
+        app:cardElevation="0dp"
+        app:cardBackgroundColor="#141414"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Barre du haut -->
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:id="@+id/btnCancel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/Cancel"
+                    android:textSize="16sp"
+                    android:textColor="#FFFFFF"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent"/>
+
+                <TextView
+                    android:id="@+id/tvTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/new_rule"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#FFFFFF"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent"/>
+
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="14dp"/>
+
+            <!-- Templates (visible uniquement en mode CREATE si l'API en retourne) -->
+            <RadioGroup
+                android:id="@+id/rgTemplates"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Libellé utilisateur (optionnel) -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilUserLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:hint="Nom de l'alerte (optionnel)"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_marginBottom="16dp">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etUserLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FFFFFF"
+                    android:inputType="text"
+                    android:maxLines="1"/>
+
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Sélecteur d'opérateur (visible uniquement en mode CREATE) -->
+            <LinearLayout
+                android:id="@+id/llOperatorRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:visibility="gone"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Opérateur"
+                    android:textColor="#8C8C8C"
+                    android:textSize="14sp"/>
+
+                <Spinner
+                    android:id="@+id/spinnerOperator"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:popupBackground="#1F1F1F"/>
+
+            </LinearLayout>
+
+            <!-- Condition -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/condition"
+                android:textColor="#8C8C8C"
+                android:textStyle="bold"
+                android:textSize="14sp"/>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="8dp"/>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#1F1F1F">
+
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="14dp">
+
+                    <TextView
+                        android:id="@+id/tvThresholdLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/level_xb"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent"/>
+
+                    <!-- - (icone) -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnThresholdMinus"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:minWidth="40dp"
+                        android:minHeight="40dp"
+                        android:padding="0dp"
+                        android:paddingStart="0dp"
+                        android:paddingEnd="0dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:text=""
+                        android:contentDescription="@string/lower_the_threshold"
+                        app:icon="@drawable/baseline_remove_24"
+                        app:iconTint="#FFFFFF"
+                        app:iconSize="18dp"
+                        app:iconPadding="0dp"
+                        app:iconGravity="textStart"
+                        app:backgroundTint="#1F1F1F"
+                        app:strokeColor="#5A5A5A"
+                        app:strokeWidth="1dp"
+                        app:layout_constraintEnd_toStartOf="@+id/btnThresholdPlus"
+                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent"/>
+
+                    <!-- + (icone) -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnThresholdPlus"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:minWidth="40dp"
+                        android:minHeight="40dp"
+                        android:layout_marginStart="8dp"
+                        android:padding="0dp"
+                        android:paddingStart="0dp"
+                        android:paddingEnd="0dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:text=""
+                        android:contentDescription="Upper the threshold"
+                        app:icon="@drawable/outline_add_24"
+                        app:iconTint="#FFFFFF"
+                        app:iconSize="18dp"
+                        app:iconPadding="0dp"
+                        app:iconGravity="textStart"
+                        app:backgroundTint="#1F1F1F"
+                        app:strokeColor="#5A5A5A"
+                        app:strokeWidth="1dp"
+                        app:layout_constraintEnd_toStartOf="@+id/cardThresholdValue"
+                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent"/>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/cardThresholdValue"
+                        android:layout_width="60dp"
+                        android:layout_height="40dp"
+                        app:cardCornerRadius="10dp"
+                        app:cardElevation="0dp"
+                        app:cardBackgroundColor="#0F0F0F"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent">
+
+                        <TextView
+                            android:id="@+id/tvThresholdValue"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:gravity="center"
+                            android:text="50"
+                            android:textStyle="bold"
+                            android:textColor="#FFFFFF"
+                            android:textSize="16sp"/>
+                    </com.google.android.material.card.MaterialCardView>
+
+                </androidx.constraintlayout.widget.ConstraintLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="16dp"/>
+
+            <!-- Options -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/options"
+                android:textColor="#8C8C8C"
+                android:textStyle="bold"
+                android:textSize="14sp"/>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="8dp"/>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#1F1F1F">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <TextView
+                            android:id="@+id/tvCooldownLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/cooldown"
+                            android:textColor="#FFFFFF"
+                            android:textSize="16sp"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent"
+                            app:layout_constraintBottom_toBottomOf="parent"/>
+
+                        <TextView
+                            android:id="@+id/tvCooldownValue"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="60s"
+                            android:textColor="#FFFFFF"
+                            android:textSize="16sp"
+                            android:layout_marginEnd="12dp"
+                            app:layout_constraintEnd_toStartOf="@+id/btnCooldownMinus"
+                            app:layout_constraintTop_toTopOf="parent"
+                            app:layout_constraintBottom_toBottomOf="parent"/>
+
+                        <!-- - (icone) -->
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnCooldownMinus"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:minWidth="40dp"
+                            android:minHeight="40dp"
+                            android:padding="0dp"
+                            android:paddingStart="0dp"
+                            android:paddingEnd="0dp"
+                            android:insetLeft="0dp"
+                            android:insetRight="0dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:text=""
+                            android:contentDescription="@string/lower_the_cooldown"
+                            app:icon="@drawable/baseline_remove_24"
+                            app:iconTint="#FFFFFF"
+                            app:iconSize="18dp"
+                            app:iconPadding="0dp"
+                            app:iconGravity="textStart"
+                            app:backgroundTint="#1F1F1F"
+                            app:strokeColor="#5A5A5A"
+                            app:strokeWidth="1dp"
+                            app:layout_constraintEnd_toStartOf="@+id/btnCooldownPlus"
+                            app:layout_constraintTop_toTopOf="parent"
+                            app:layout_constraintBottom_toBottomOf="parent"/>
+
+                        <!-- + (icone) -->
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnCooldownPlus"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:minWidth="40dp"
+                            android:minHeight="40dp"
+                            android:padding="0dp"
+                            android:paddingStart="0dp"
+                            android:paddingEnd="0dp"
+                            android:insetLeft="0dp"
+                            android:insetRight="0dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:text=""
+                            android:contentDescription="@string/upper_the_cooldown"
+                            app:icon="@drawable/outline_add_24"
+                            app:iconTint="#FFFFFF"
+                            app:iconSize="18dp"
+                            app:iconPadding="0dp"
+                            app:iconGravity="textStart"
+                            app:backgroundTint="#1F1F1F"
+                            app:strokeColor="#5A5A5A"
+                            app:strokeWidth="1dp"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toTopOf="parent"
+                            app:layout_constraintBottom_toBottomOf="parent"/>
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="12dp"/>
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <TextView
+                            android:id="@+id/tvEnabledLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/Activated"
+                            android:textColor="#FFFFFF"
+                            android:textSize="16sp"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent"
+                            app:layout_constraintBottom_toBottomOf="parent"/>
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchEnabled"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="true"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toTopOf="parent"
+                            app:layout_constraintBottom_toBottomOf="parent"/>
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="18dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCreateRule"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="Créer la règle"
+                android:textAllCaps="false"
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                app:backgroundTint="#4DA3FF"
+                app:cornerRadius="14dp"/>
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

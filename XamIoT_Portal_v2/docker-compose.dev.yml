@@ -1,0 +1,18 @@
+services:
+  xamiot-portal:
+    build: .
+    container_name: xamiot-portal
+    restart: unless-stopped
+    env_file: .env.dev
+    networks: [proxy]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.xamiot-portal.rule=Host(`xamcli.holiceo.com`)
+      - traefik.http.routers.xamiot-portal.entrypoints=websecure
+      - traefik.http.routers.xamiot-portal.tls.certresolver=le
+      - traefik.http.services.xamiot-portal.loadbalancer.server.port=3002
+
+networks:
+  proxy:
+    external: true

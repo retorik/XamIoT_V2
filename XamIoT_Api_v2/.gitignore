@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.prod
+secrets/
+db/data/
+*.log
+.DS_Store
+.vscode/
+firebase-service-account.json
+google-services.json

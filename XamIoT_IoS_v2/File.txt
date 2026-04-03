@@ -1,0 +1,1 @@
+https://github.com/retorik/XamIoT-SoundSense/blob/main/Localizable.xcstrings

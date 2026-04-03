@@ -1,0 +1,229 @@
+#include "wifi_mgr.h"
+#include "nvs_store.h"
+#include "globals.h"
+#include "config.h"
+#include "mqtt_mgr.h"
+#include "ble.h" 
+#include <esp_wifi.h>
+#include "ota_mgr.h"
+
+
+static uint32_t s_lastWifiAction = 0;
+
+// SSID courant (MAJ à GOT_IP)
+static String s_currentSsid;
+
+// ================== ÉVÉNEMENTS WiFi ==================
+void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
+  switch (event) {
+    case ARDUINO_EVENT_WIFI_STA_CONNECTED:
+      Serial.println("WiFi CONNECTED (association)");
+      scheduleBleStatus("Connecté (association)");
+      break;
+
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+      wifiConnected = true;
+      g_wifiBusyConnect = false;
+      g_lastDiscReason = -1;
+      Serial.printf("WiFi GOT_IP: %s (SSID=\"%s\")\n",
+                    WiFi.localIP().toString().c_str(), WiFi.SSID().c_str());
+      // ⚠️ Ne PAS notifier directement ici
+      scheduleBleStatus("Connecté: " + WiFi.localIP().toString());
+
+      g_needWebServerStart = true;
+      g_needMqttReconnect  = true;
+      break;
+
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: {
+      wifiConnected = false;
+      g_wifiBusyConnect = false;
+      int reason = (int)info.wifi_sta_disconnected.reason;
+      g_lastDiscReason = reason;
+      Serial.printf("WiFi DISCONNECTED, reason=%d\n", reason);
+      scheduleBleStatus("Déconnecté (r=" + String(reason) + ")");
+      break;
+    }
+
+    default:
+      break;
+  }
+}
+
+// ================== Helpers ==================
+static void prepareCoex() {
+  // Option qui réduit un peu la conso et améliore la cohabitation WiFi / BLE.
+  // Tu peux ajuster ou laisser comme ça pour l’instant.
+  WiFi.setSleep(true);
+  esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+}
+
+// ================== Helpers ==================
+bool connectToSsid(const String& ssid, const String& pass) {
+  if (ssid.isEmpty() || pass.length() < 8) {
+    Serial.println("[WiFi] SSID/PASS invalides");
+    return false;
+  }
+
+  prepareCoex();
+  WiFi.mode(WIFI_STA);
+
+  // Hostname commun WiFi/OTA/BLE si disponible
+  if (g_hostname[0] != '\0') {
+    WiFi.setHostname(g_hostname);
+    Serial.printf("[WiFi] Hostname fixé à \"%s\"\n", g_hostname);
+  }
+
+  WiFi.persistent(false);
+  WiFi.disconnect(false, false);
+  delay(50);
+
+  Serial.printf("Boot: tentative sur \"%s\"...\n", ssid.c_str());
+  WiFi.begin(ssid.c_str(), pass.c_str());
+
+  unsigned long t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && (millis() - t0) < 15000UL) {
+    delay(100);
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    wifiConnected = true;
+    s_currentSsid = ssid;
+    Serial.printf("[WiFi] Connecté: %s (RSSI=%d dBm)\n",
+                  WiFi.localIP().toString().c_str(), WiFi.RSSI());
+    return true;
+  } else {
+    Serial.println("[WiFi] Échec de connexion (timeout)");
+    return false;
+  }
+}
+
+void tryConnectFromStored() {
+  String s, p;
+  loadCredentials(s, p);
+  if (!s.isEmpty() && p.length() >= 8) {
+    connectToSsid(s, p);
+  } else {
+    Serial.println("[WiFi] Aucun identifiant stocké valide.");
+  }
+}
+
+String currentSsid() { return s_currentSsid; }
+
+// ================== SWITCH Wi-Fi non bloquant ==================
+enum SwitchPhase : uint8_t { SW_IDLE=0, SW_PREPARE, SW_BEGIN, SW_WAIT_IP };
+static SwitchPhase s_phase = SW_IDLE;
+static bool        s_switchRequested = false;
+static String      s_reqSsid, s_reqPass;
+static uint32_t    s_connectDeadline = 0;
+
+// Switch en cours (interne à ce fichier)
+static bool g_wifiSwitchInProgress = false;
+
+// Demande de switch (appelée après saveCredentials)
+void requestWifiSwitch(const String& ssid, const String& pass) {
+  String ns = ssid; ns.trim();
+  String np = pass; np.trim();
+  if (ns.isEmpty() || np.length() < 8) {
+    Serial.println("[WiFi] requestWifiSwitch: identifiants invalides");
+    return;
+  }
+  s_reqSsid = ns;
+  s_reqPass = np;
+  s_switchRequested = true;
+  s_phase = SW_IDLE;
+  g_wifiSwitchInProgress = true;
+  s_lastWifiAction = 0;
+  Serial.printf("[WiFi] Switch demandé vers \"%s\"\n", s_reqSsid.c_str());
+}
+
+void wifiSwitchService() {
+  if (otaIsRunning()) {
+    // Ne touche pas au WiFi pendant une mise à jour OTA
+    return;
+  }
+
+  if (!s_switchRequested) return;
+
+  const uint32_t now = millis();
+  if (now - s_lastWifiAction < 50UL) return;
+
+  switch (s_phase) {
+    case SW_IDLE: {
+      s_phase = SW_PREPARE;
+      s_lastWifiAction = now;
+      break;
+    }
+
+    case SW_PREPARE: {
+      if (g_mqtt.connected()) {
+        Serial.println("[WiFi] Prépare switch: déconnexion MQTT");
+        g_mqtt.disconnect();
+      }
+      g_netSecure.stop();
+      WiFi.disconnect(false, false);
+      s_phase = SW_BEGIN;
+      s_lastWifiAction = now;
+      break;
+    }
+
+    case SW_BEGIN: {
+      prepareCoex();
+      WiFi.mode(WIFI_STA);
+      WiFi.persistent(false);
+      Serial.printf("[WiFi] Connexion → \"%s\" (non bloquant)\n", s_reqSsid.c_str());
+      WiFi.begin(s_reqSsid.c_str(), s_reqPass.c_str());
+
+      s_connectDeadline = now + 15000UL;
+      s_phase = SW_WAIT_IP;
+      s_lastWifiAction = now;
+      break;
+    }
+
+    case SW_WAIT_IP: {
+      if (WiFi.status() == WL_CONNECTED) {
+        wifiConnected = true;
+        s_currentSsid = s_reqSsid;
+        Serial.printf("[WiFi] Switch OK: %s (RSSI=%d dBm)\n",
+                      WiFi.localIP().toString().c_str(), WiFi.RSSI());
+
+        s_switchRequested = false;
+        s_phase = SW_IDLE;
+        g_wifiSwitchInProgress = false;
+
+        // Déclenche la reconnexion MQTT via la loop principale
+        g_needMqttReconnect = true;   // (déclaré dans globals.h en volatile)
+        return;
+      }
+
+      if ((int32_t)(now - s_connectDeadline) >= 0) {
+        Serial.println("[WiFi] Switch échec (timeout)");
+        s_switchRequested = false;
+        s_phase = SW_IDLE;
+        g_wifiSwitchInProgress = false;
+        return;
+      }
+      s_lastWifiAction = now;
+      break;
+    }
+  }
+}
+
+// ================== Watchdog Wi-Fi ==================
+void wifiWatchdogService() {
+    if (otaIsRunning()) {
+    // Pas de reconnexion automatique pendant OTA
+    return;
+  }
+  
+  const uint32_t now = millis();
+  if (now - s_lastWifiAction < 2000UL) return;
+
+  if (!wifiConnected && WiFi.status() != WL_CONNECTED && !g_wifiSwitchInProgress) {
+    WiFi.disconnect(false, false);
+    String s, p; loadCredentials(s, p);
+    if (!s.isEmpty() && p.length() >= 8) {
+      Serial.println("[WiFi] Watchdog: tentative via NVS…");
+      requestWifiSwitch(s, p);   // non bloquant
+    }
+    s_lastWifiAction = now;
+  }
+}

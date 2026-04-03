@@ -1,0 +1,27 @@
+services:
+  xamiot-api:
+    build: .
+    container_name: xamiot-api
+    restart: unless-stopped
+    env_file: .env.dev
+    networks: [proxy, backend]
+    volumes:
+      - xamiot_ota_data:/data/ota
+      - xamiot_media_data:/data/media
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.xamiot-api.rule=Host(`apixam.holiceo.com`)
+      - traefik.http.routers.xamiot-api.entrypoints=websecure
+      - traefik.http.routers.xamiot-api.tls.certresolver=le
+      - traefik.http.services.xamiot-api.loadbalancer.server.port=3000
+
+networks:
+  proxy:
+    external: true
+  backend:
+    external: true
+
+volumes:
+  xamiot_ota_data:
+  xamiot_media_data:

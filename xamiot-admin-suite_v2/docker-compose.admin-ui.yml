@@ -1,0 +1,34 @@
+# docker-compose.admin-ui.yml
+# Service UI seul (l'API existante sert déjà /admin/*)
+services:
+  xamiot-admin-ui:
+    build:
+      context: ./admin-ui
+      args:
+        VITE_API_BASE: "https://api.xamiot.com"
+    container_name: xamiot-admin-ui
+    restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+
+      # Router HTTPS
+      - "traefik.http.routers.xamiot-admin-ui.rule=Host(`xamiot.holiceo.com`)"
+      - "traefik.http.routers.xamiot-admin-ui.entrypoints=websecure"
+      - "traefik.http.routers.xamiot-admin-ui.tls=true"
+      - "traefik.http.routers.xamiot-admin-ui.tls.certresolver=le"
+      - "traefik.http.services.xamiot-admin-ui.loadbalancer.server.port=80"
+
+      # Middleware redirect HTTP→HTTPS (défini inline)
+      - "traefik.http.middlewares.xamiot-admin-ui-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.xamiot-admin-ui-https.redirectscheme.permanent=true"
+
+      # Router HTTP qui redirige vers HTTPS
+      - "traefik.http.routers.xamiot-admin-ui-http.rule=Host(`xamiot.holiceo.com`)"
+      - "traefik.http.routers.xamiot-admin-ui-http.entrypoints=web"
+      - "traefik.http.routers.xamiot-admin-ui-http.middlewares=xamiot-admin-ui-https"
+
+networks:
+  proxy:
+    external: true

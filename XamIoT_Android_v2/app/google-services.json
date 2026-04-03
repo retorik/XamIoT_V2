@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "241605114413",
+    "project_id": "xamiot-641bb",
+    "storage_bucket": "xamiot-641bb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:241605114413:android:615b3c03185f23344296a4",
+        "android_client_info": {
+          "package_name": "com.xamiot.soundsense"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBtC0RVm4E5Rpou7rUJDoYtTzbHy6fEMP4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

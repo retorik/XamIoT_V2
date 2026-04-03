@@ -1,0 +1,68 @@
+1) SND_MIN_PUB_INTERVAL_MS
+Défaut : 1000 (1 s)
+Type / rôle : intervalle minimum entre deux publications “par exception” (celles déclenchées par une variation ou un burst).
+N’influe pas sur la publication périodique.
+Où c’est appliqué : dans la loop, pour les branches variation EWMA et burst (test now - g_lastPublishMs >= SND_MIN_PUB_INTERVAL_MS).
+Augmenter (ex. 2000–5000 ms) : réduit la fréquence max des envois déclenchés par changement/bruit → moins de charge MQTT, un peu plus d’inertie.
+Diminuer : envoie plus vite sur variations → plus réactif, mais plus de messages.
+Conseil : 2000–5000 ms pour des environnements dynamiques (musique/voix).
+
+2) SND_CHANGE_THRESHOLD_PCT
+Défaut : 6 (points de %)
+Type / rôle : seuil de variation (en points de %) entre la dernière valeur publiée et la valeur EWMA quantifiée (ewma_q) pour déclencher un envoi “par exception”.
+Où c’est appliqué : comparaison diff >= SND_CHANGE_THRESHOLD_PCT (avec ewma_q).
+Augmenter (ex. 8–10) : moins d’envois causés par de petites fluctuations → plus lisse, moins précis aux petites variations.
+Diminuer : plus sensible → davantage d’envois.
+Interaction : agit après la quantification (QUANTIZE_STEP_PCT), donc une quantification plus grosse rend déjà les petites variations invisibles.
+
+3) QUANTIZE_STEP_PCT
+Défaut : 2 (%)
+Type / rôle : arrondi (quantification) des pourcentages à des pas fixes (1=aucune quantification).
+Utilisé pour :
+la valeur EWMA comparée au dernier publish (réduit les micro-diffs),
+la moyenne de fenêtre (soundPct_avg) renvoyée au web/MQTT.
+Augmenter (ex. 5) : moins de micro-variations, donc moins de déclenchements par changement ; la télémétrie est plus “en marches d’escalier”.
+Diminuer : télémétrie plus fine → potentiellement plus d’envois.
+Plage conseillée : 1–5. Évite >10 (perte de fidélité) et >>100 (comportement extrême, quasi 0 ou 100).
+4) BURST_THRESHOLD_PCT
+Défaut : 80 (%)
+Type / rôle : seuil instantané (basé sur g_soundPct) au-delà duquel on publie immédiatement (si l’intervalle mini est respecté).
+Monter (ex. 90) : moins d’envois “burst” → n’envoie que sur pics très forts.
+Désactiver : mets une valeur >100 (jamais atteint) → aucun envoi “burst”.
+Baisser : envoie dès des niveaux plus modestes → plus de messages.
+
+5) SND_PERIODIC_PUB_MS
+Défaut : 10000 (10 s)
+Type / rôle : période entre deux publications automatiques (périodiques), indépendamment des variations/bursts.
+Augmenter (ex. 15000–30000 ms) : moins d’envois de fond (4/min à 2/min…).
+Diminuer : plus d’envois de fond.
+Important : ne pas mettre 0 (publierait en boucle). Garde ≥1000 ms.
+Rappel : même si la périodique se déclenche, le rate-limit (PUB_MAX_PER_MIN) peut bloquer l’envoi réel.
+
+6) PUB_MAX_PER_MIN
+Défaut : 12 (messages effectivement envoyés par minute et par device)
+Type / rôle : plafond hard dans mqttPublishStatus() : au-delà, le publish est refusé et loggé “Rate-limit: publication ignorée”.
+Relever (ex. 30) : autorise plus de messages/minute si ton broker et le réseau le supportent.
+Baisser : protège davantage le broker, mais plus de refus possibles.
+Fenêtre : se réinitialise toutes les 60 s.
+Interactions & borne supérieure pratique
+Ordre des déclencheurs dans la loop :
+Périodique (toutes SND_PERIODIC_PUB_MS), sinon
+Variation EWMA (seuil SND_CHANGE_THRESHOLD_PCT après quantification, et respect de SND_MIN_PUB_INTERVAL_MS), sinon
+Burst (seuil BURST_THRESHOLD_PCT + respect SND_MIN_PUB_INTERVAL_MS).
+Ensuite, mqttPublishStatus() applique PUB_MAX_PER_MIN (plafond hard).
+
+Upper bound (par device) ≈
+min(
+  PUB_MAX_PER_MIN,
+  60000 / SND_PERIODIC_PUB_MS   +   60000 / SND_MIN_PUB_INTERVAL_MS
+)
+
+(la réalité sera inférieure grâce au seuil de variation + quantification).
+Réglages “profil économe broker”
+SND_PERIODIC_PUB_MS = 15000–30000
+SND_MIN_PUB_INTERVAL_MS = 3000–5000
+SND_CHANGE_THRESHOLD_PCT = 8–10
+QUANTIZE_STEP_PCT = 3–5
+BURST_THRESHOLD_PCT = 90 (ou >100 pour désactiver)
+PUB_MAX_PER_MIN = 12–20 (selon ta marge côté Mosquitto/Home Assistant)

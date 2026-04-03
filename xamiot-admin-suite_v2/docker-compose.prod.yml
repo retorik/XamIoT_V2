@@ -1,0 +1,20 @@
+services:
+  xamiot-admin-ui:
+    build:
+      context: ./admin-ui
+      args:
+        VITE_API_BASE: https://apixam.holiceo.com
+    container_name: xamiot-admin-ui
+    restart: unless-stopped
+    networks: [proxy]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.xamiot-admin.rule=Host(`xamiot.holiceo.com`)
+      - traefik.http.routers.xamiot-admin.entrypoints=websecure
+      - traefik.http.routers.xamiot-admin.tls.certresolver=le
+      - traefik.http.services.xamiot-admin.loadbalancer.server.port=80
+
+networks:
+  proxy:
+    external: true

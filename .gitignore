@@ -1,0 +1,45 @@
+# ─── Systeme ───
+.DS_Store
+*.log
+Thumbs.db
+
+# ─── Secrets / credentials ───
+.env
+.env.*
+!.env.example
+*.p8
+*.pem
+*.key
+*.p12
+*.jks
+
+# ─── Node.js ───
+node_modules/
+dist/
+build/
+
+# ─── iOS / Xcode ───
+*.xcuserstate
+xcuserdata/
+DerivedData/
+*.ipa
+*.dSYM.zip
+
+# ─── Android ───
+*.apk
+*.aab
+.gradle/
+local.properties
+
+# ─── ESP32 / PlatformIO ───
+.pio/
+.vscode/
+
+# ─── Audit (fichiers temporaires) ───
+audit/
+
+# ─── Bruno (client HTTP) ───
+Bruno/
+
+# ─── Icones sources ───
+*.ico

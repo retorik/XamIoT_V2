@@ -1,0 +1,52 @@
+# mosquitto.conf.template — généré par docker-entrypoint.sh via envsubst
+# Les variables ${...} sont remplacées au démarrage du container
+
+listener 1883 0.0.0.0
+protocol mqtt
+
+allow_anonymous false
+
+persistence true
+persistence_location /mosquitto/data/
+
+log_dest stdout
+log_type error
+log_type warning
+log_type notice
+log_type information
+
+# ==============================
+#   Plugin mosquitto-go-auth
+# ==============================
+auth_plugin /mosquitto/go-auth.so
+auth_opt_backends postgres
+
+# Bcrypt (même algo que l'API v2 : bcryptjs)
+auth_opt_hasher bcrypt
+auth_opt_hasher_cost 10
+
+# ---- Connexion Postgres (VPS : container xamiot-postgres, réseau backend) ----
+auth_opt_pg_host postgres
+auth_opt_pg_port 5432
+auth_opt_pg_dbname xamiot_v2
+auth_opt_pg_user xamiot_v2_user
+auth_opt_pg_password ${MQTT_PG_PASSWORD}
+auth_opt_pg_sslmode disable
+auth_opt_pg_connect_tries 5
+
+# ---- Authentification utilisateur ----
+# Le username MQTT = esp_uid (ex: 3C6105F2B8A4)
+# Le password MQTT = mqtt_password fourni à l'enregistrement ESP (haché bcrypt en DB)
+auth_opt_pg_userquery SELECT mqtt_password_hash FROM public.esp_devices WHERE esp_uid = $1 AND mqtt_enabled = true AND mqtt_password_hash IS NOT NULL
+
+# ---- Superuser (API worker) ----
+# Un device marqué is_superuser=true bypass l'ACL → peut sub à devices/+/status
+auth_opt_pg_superquery SELECT COALESCE(is_superuser::int, 0) FROM public.esp_devices WHERE esp_uid = $1 AND mqtt_enabled = true
+
+# ---- ACL par device ----
+# rw : 1=subscribe, 2=publish, 3=both
+# Chaque ESP peut :
+#   - publier sur devices/<esp_uid>/status (données capteur)
+#   - publier sur devices/<esp_uid>/availability (will + online/offline)
+#   - s'abonner à devices/<esp_uid>/cmd/# (reboot, OTA)
+auth_opt_pg_aclquery SELECT topic FROM (SELECT 'devices/' || esp_uid || '/status' AS topic, 2 AS rw FROM public.esp_devices WHERE esp_uid = $1 AND mqtt_enabled = true UNION ALL SELECT 'devices/' || esp_uid || '/availability' AS topic, 2 AS rw FROM public.esp_devices WHERE esp_uid = $1 AND mqtt_enabled = true UNION ALL SELECT 'devices/' || esp_uid || '/cmd/#' AS topic, 1 AS rw FROM public.esp_devices WHERE esp_uid = $1 AND mqtt_enabled = true) t WHERE rw = $2 OR rw = 3 OR (rw = 1 AND $2 = 4)

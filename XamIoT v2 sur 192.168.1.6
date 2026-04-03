@@ -1,0 +1,86 @@
+apport de déploiement — XamIoT v2 sur 192.168.1.6
+                                                                                                                                   
+  Ce qui a été fait ✅                                                                                                          
+                                                                                                                                   
+  ┌──────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────┬────────┐   
+  │      Composant       │                                           Détail                                           │ Statut │   
+  ├──────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┼────────┤   
+  │ Réseau Docker        │ Créé, postgres connecté                                                                    │ ✅     │
+  │ backend              │                                                                                            │        │   
+  ├──────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┼────────┤   
+  │ DB xamiot_v2         │ Créée sur container postgres, user xamiot_v2_user, schéma complet                          │ ✅     │   
+  ├──────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┼────────┤   
+  │ API REST             │ https://apixam.holiceo.com · Traefik TLS · port 3000                                       │ ✅     │   
+  ├──────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┼────────┤
+  │ Admin UI             │ https://xamiot.holiceo.com · Nginx · build Vite avec                                       │ ✅     │   
+  │                      │ VITE_API_BASE=https://apixam.holiceo.com                                                   │        │
+  ├──────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┼────────┤   
+  │ Mosquitto v2         │ 192.168.1.6:1883 · auth PostgreSQL (go-auth) · LAN uniquement                              │ ✅     │
+  ├──────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┼────────┤   
+  │ api_worker           │ Inséré en DB avec is_superuser=true, MQTT worker connecté et subscribe OK                  │ ✅     │
+  ├──────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┼────────┤   
+  │ Compte admin         │ support@xamiot.com / Manouch80 · activé · is_admin=true                                    │ ✅     │
+  ├──────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┼────────┤   
+  │ Dockerfile Mosquitto │ Corrigé : apt-get → sed (image bullseye trop ancienne pour apt)                            │ ✅     │
+  └──────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────┴────────┘   
+                                                                                                                                
+  Ce qui n'a pas été fait ❌ / Reste à faire                                                                                       
+                                                                                                                                
+  ┌───────────────────────────────┬────────────┬───────────────────────────────────────────────────────────┐                       
+  │            Action             │  Priorité  │                         Procédure                         │                    
+  ├───────────────────────────────┼────────────┼───────────────────────────────────────────────────────────┤                       
+  │ Migration données v1 → v2     │ Haute      │ Voir ci-dessous                                           │                    
+  ├───────────────────────────────┼────────────┼───────────────────────────────────────────────────────────┤                       
+  │ Tests mobiles (iOS + Android) │ Haute      │ Login + enrollment ESP32 + push MQTT sur 192.168.1.6:1883 │                       
+  ├───────────────────────────────┼────────────┼───────────────────────────────────────────────────────────┤                       
+  │ Révoquer clés APNS            │ Avant prod │ AuthKey_Y7SDPM4V35.p8 + AuthKey_GGGNLJ8269.p8             │                       
+  ├───────────────────────────────┼────────────┼───────────────────────────────────────────────────────────┤                       
+  │ Révoquer Firebase v1          │ Avant prod │ Service account key de la v1                              │                    
+  └───────────────────────────────┴────────────┴───────────────────────────────────────────────────────────┘                       
+                                                                                                                                
+  Anciens services à supprimer                                                                                                     
+                                                                                                                                
+  Sur ce VPS (192.168.1.6) : RIEN à supprimer. Le VPS était vierge pour XamIoT — le dossier /home/jeremy/api/ était un répertoire  
+  vide créé par root.                                                                                                           
+                                                                                                                                   
+  Si tu as des restes sur ecrimoi.com :                                                                                            
+                                 
+  ssh jeremy@ecrimoi.com                                                                                                           
+                                                                                                                                   
+  # 1. Lister les containers XamIoT                                                                                                
+  docker ps -a | grep -i xamiot                                                                                                    
+                                                                                                                                   
+  # 2. Stopper + supprimer les containers                                                                                          
+  docker stop <nom_container>                                                                                                      
+  docker rm <nom_container>                                                                                                        
+                                                                                                                                   
+  # 3. Supprimer les images                                                                                                        
+  docker images | grep -i xamiot                                                                                                   
+  docker rmi <image_id>                                                                                                            
+                                                                                                                                   
+  # 4. Supprimer les volumes (⚠️  irréversible)                                                                                     
+  docker volume ls | grep -i xamiot                                                                                                
+  docker volume rm <volume_name>                                                                                                   
+                                                                                                                                   
+  # 5. Supprimer le dossier                                                                                                        
+  rm -rf /home/jeremy/XamIoT_v1   # ou le dossier correspondant                                                                    
+                                                                                                                                   
+  Accès rapide                                                                                                                     
+                                                                                                                                   
+  ┌────────────────┬────────────────────────────────────────────────────────────────────────────────────┐                          
+  │    Service     │                                       Accès                                        │                       
+  ├────────────────┼────────────────────────────────────────────────────────────────────────────────────┤                          
+  │ Admin          │ https://xamiot.holiceo.com · support@xamiot.com / Manouch80                        │                       
+  ├────────────────┼────────────────────────────────────────────────────────────────────────────────────┤
+  │ API            │ https://apixam.holiceo.com                                                         │                          
+  ├────────────────┼────────────────────────────────────────────────────────────────────────────────────┤                          
+  │ MQTT (LAN)     │ 192.168.1.6:1883 · credentials générés lors de l'enrollment BLE des ESP32          │                          
+  ├────────────────┼────────────────────────────────────────────────────────────────────────────────────┤                          
+  │ SSH            │ ssh jeremy@192.168.1.6 · dossier /home/jeremy/XamIoT_v2/                           │                       
+  ├────────────────┼────────────────────────────────────────────────────────────────────────────────────┤                          
+  │ Logs API       │ docker logs -f xamiot-api                                                          │                       
+  ├────────────────┼────────────────────────────────────────────────────────────────────────────────────┤                          
+  │ Logs Mosquitto │ docker logs -f xamiot-mosquitto                                                    │                       
+  ├────────────────┼────────────────────────────────────────────────────────────────────────────────────┤                          
+  │ Restart API    │ cd /home/jeremy/XamIoT_v2/api && docker compose -f docker-compose.prod.yml restart │                       
+  └────────────────┴────────────────────────────────────────────────────────────────────────────────────┘        

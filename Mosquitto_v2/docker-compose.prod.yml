@@ -1,0 +1,30 @@
+services:
+  xamiot-mosquitto:
+    build: .
+    container_name: xamiot-mosquitto
+    restart: unless-stopped
+    env_file: .env.prod
+    ports:
+      - "1883:1883"   # accessible sur réseau local 192.168.1.x (ESP32, tests LAN)
+    networks: [backend, proxy]
+    volumes:
+      - xamiot_mosquitto_data:/mosquitto/data
+    labels:
+      # TCP router : Traefik termine le TLS sur mqtt.holiceo.com:8883
+      # et forward en clair vers Mosquitto:1883 (backend network)
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.tcp.routers.xamiot-mqtt.rule=HostSNI(`mqtt.holiceo.com`)
+      - traefik.tcp.routers.xamiot-mqtt.entrypoints=mqtts
+      - traefik.tcp.routers.xamiot-mqtt.tls=true
+      - traefik.tcp.routers.xamiot-mqtt.tls.certresolver=le
+      - traefik.tcp.services.xamiot-mqtt.loadbalancer.server.port=1883
+
+volumes:
+  xamiot_mosquitto_data:
+
+networks:
+  backend:
+    external: true
+  proxy:
+    external: true

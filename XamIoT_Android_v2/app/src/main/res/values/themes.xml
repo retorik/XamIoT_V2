@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- ✅ Thème principal : TOP NOIR (Main + DeviceDetail) -->
+    <style name="Base.Theme.SoundSense" parent="Theme.Material3.Light.NoActionBar">
+
+        <!-- Couleurs principales -->
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorAccent">@color/accent</item>
+
+        <!-- Couleurs de fond -->
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorSurface">@color/surface</item>
+
+        <!-- Couleurs de texte -->
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_hint</item>
+
+        <!-- Couleur d'erreur -->
+        <item name="colorError">@color/error</item>
+
+        <!-- Style des TextInputLayout -->
+        <item name="textInputStyle">@style/Widget.App.TextInputLayout</item>
+
+        <!-- ✅ Bandeau haut/bas NOIR -->
+        <item name="android:statusBarColor">@color/black</item>
+        <item name="android:navigationBarColor">@color/black</item>
+
+        <!-- ✅ Icônes CLAIRES (sur fond noir) -->
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+
+        <!-- Toolbar noire -->
+        <item name="toolbarStyle">@style/Widget.App.Toolbar</item>
+
+        <!-- ✅ Switch / Toggle : couleur ON = vert (générique) -->
+        <item name="switchStyle">@style/Widget.App.Switch</item>
+        <item name="materialSwitchStyle">@style/Widget.App.Switch</item>
+    </style>
+
+    <style name="Theme.SoundSense" parent="Base.Theme.SoundSense" />
+
+    <!-- ✅ Splash : TOP BLANC -->
+    <style name="Theme.SoundSense.Splash" parent="Theme.SoundSense">
+        <item name="android:windowBackground">@color/splash_background</item>
+
+        <!-- TOP / BOTTOM blanc sur l'écran splash -->
+        <item name="android:statusBarColor">@color/white</item>
+        <item name="android:navigationBarColor">@color/white</item>
+
+        <!-- Icônes sombres sur fond blanc -->
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+
+        <!-- ⚠️ Important : on désactive le fullscreen qui cause souvent une bande noire -->
+        <item name="android:windowFullscreen">false</item>
+    </style>
+
+    <!-- ✅ Dialog sombre cohérent avec le design de l'app -->
+    <style name="Theme.SoundSense.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorSurface">#1E1E1E</item>
+        <item name="colorOnSurface">#FFFFFF</item>
+        <item name="colorOnSurfaceVariant">#CCCCCC</item>
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorError">@color/error</item>
+        <item name="android:background">#1E1E1E</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textColorPrimary">#FFFFFF</item>
+        <item name="android:textColorSecondary">#CCCCCC</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/Widget.App.Dialog.Title</item>
+        <item name="materialAlertDialogBodyTextStyle">@style/Widget.App.Dialog.Body</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.App.Dialog.Button.Positive</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.App.Dialog.Button.Negative</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.App.Dialog</item>
+    </style>
+
+    <style name="Widget.App.Dialog.Title" parent="MaterialAlertDialog.Material3.Title.Text">
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+
+    <style name="Widget.App.Dialog.Body" parent="MaterialAlertDialog.Material3.Body.Text">
+        <item name="android:textColor">#CCCCCC</item>
+    </style>
+
+    <style name="ShapeAppearance.App.Dialog" parent="">
+        <item name="cornerSize">20dp</item>
+    </style>
+
+    <!-- Boutons du dialog : texte lisible sur fond sombre -->
+    <style name="Widget.App.Dialog.Button.Positive" parent="Widget.Material3.Button.TextButton.Dialog">
+        <item name="android:textColor">@color/primary</item>
+    </style>
+
+    <style name="Widget.App.Dialog.Button.Negative" parent="Widget.Material3.Button.TextButton.Dialog">
+        <item name="android:textColor">#CCCCCC</item>
+    </style>
+
+    <!-- Toolbar noire + texte blanc -->
+    <style name="Widget.App.Toolbar" parent="Widget.Material3.Toolbar">
+        <item name="android:background">@color/black</item>
+        <item name="titleTextColor">@color/white</item>
+        <item name="subtitleTextColor">@color/white</item>
+        <item name="android:elevation">4dp</item>
+    </style>
+
+    <!-- ✅ SwitchMaterial global : ON vert -->
+    <style name="Widget.App.Switch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <item name="android:scaleX">0.75</item>
+        <item name="android:scaleY">0.75</item>
+        <!-- Couleur du thumb (rond) -->
+        <item name="thumbTint">@color/switch_thumb_tint</item>
+        <!-- Couleur de la piste (track) -->
+        <item name="trackTint">@color/switch_track_tint</item>
+    </style>
+</resources>

@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.prod
+.env.dev
+.DS_Store
+*.log
+
+# ─── Dossiers qui ne doivent PAS être dans ce repo ───
+# Chaque composant a son propre dossier dédié dans XamIoT/
+# ios/        → XamIoT_IoS_v2/
+# android/    → XamIoT_Android_v2/
+# esp32/      → ESP32-C3-Sensor_v2/
+# src/        → XamIoT_Api_v2/
+# portal/     → XamIoT_Portal_v2/
+# site/       → XamIoT_Site_v2/
+# mosquitto/  → Mosquitto_v2/
+ios/
+android/
+esp32/
+src/
+portal/
+site/
+mosquitto/

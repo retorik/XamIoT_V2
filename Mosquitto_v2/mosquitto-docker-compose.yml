@@ -1,0 +1,38 @@
+services:
+  mosquitto:
+    build: .
+    container_name: xamiot-mosquitto-v2
+    restart: unless-stopped
+    env_file: .env.prod
+    # PAS de ports exposés : Traefik route en TCP 8883 (TLS) -> 1883 (interne)
+    volumes:
+      - ./config:/mosquitto/config
+      - ./data:/mosquitto/data
+      - ./log:/mosquitto/log
+    networks:
+      - mosquitto_mqtt
+      - proxy
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+
+      # TCP Router MQTTS
+      - "traefik.tcp.routers.mqtt-xamiot.rule=HostSNI(`mqtt.xamiot.com`)"
+      - "traefik.tcp.routers.mqtt-xamiot.entrypoints=mqtts"
+      - "traefik.tcp.routers.mqtt-xamiot.tls=true"
+      - "traefik.tcp.routers.mqtt-xamiot.tls.certresolver=le"
+      - "traefik.tcp.routers.mqtt-xamiot.tls.domains[0].main=mqtt.xamiot.com"
+      - "traefik.tcp.routers.mqtt-xamiot.service=mqtt-xamiot-svc"
+      - "traefik.tcp.services.mqtt-xamiot-svc.loadbalancer.server.port=1883"
+
+networks:
+  mosquitto_mqtt:
+    external: true
+    name: mosquitto_mqtt
+  proxy:
+    external: true
+    name: proxy
+  backend:
+    external: true
+    name: backend

@@ -1,0 +1,589 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		51E4940E2EBF4F7100F2D816 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 51E4940D2EBF4F7100F2D816 /* Localizable.xcstrings */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		515B27092E6D84830029011E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 515B26F12E6D84800029011E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 515B26F82E6D84800029011E;
+			remoteInfo = "XamIoT SoundSense";
+		};
+		515B27132E6D84830029011E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 515B26F12E6D84800029011E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 515B26F82E6D84800029011E;
+			remoteInfo = "XamIoT SoundSense";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		515B26F92E6D84800029011E /* XamIoT SoundSense.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "XamIoT SoundSense.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		515B27082E6D84830029011E /* XamIoT SoundSenseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "XamIoT SoundSenseTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		515B27122E6D84830029011E /* XamIoT SoundSenseUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "XamIoT SoundSenseUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		51E4940D2EBF4F7100F2D816 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		515B26FB2E6D84800029011E /* XamIoT SoundSense */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "XamIoT SoundSense";
+			sourceTree = "<group>";
+		};
+		515B270B2E6D84830029011E /* XamIoT SoundSenseTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "XamIoT SoundSenseTests";
+			sourceTree = "<group>";
+		};
+		515B27152E6D84830029011E /* XamIoT SoundSenseUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "XamIoT SoundSenseUITests";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		515B26F62E6D84800029011E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		515B27052E6D84830029011E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		515B270F2E6D84830029011E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		515B26F02E6D84800029011E = {
+			isa = PBXGroup;
+			children = (
+				51E4940D2EBF4F7100F2D816 /* Localizable.xcstrings */,
+				515B26FB2E6D84800029011E /* XamIoT SoundSense */,
+				515B270B2E6D84830029011E /* XamIoT SoundSenseTests */,
+				515B27152E6D84830029011E /* XamIoT SoundSenseUITests */,
+				515B26FA2E6D84800029011E /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		515B26FA2E6D84800029011E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				515B26F92E6D84800029011E /* XamIoT SoundSense.app */,
+				515B27082E6D84830029011E /* XamIoT SoundSenseTests.xctest */,
+				515B27122E6D84830029011E /* XamIoT SoundSenseUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		515B26F82E6D84800029011E /* XamIoT SoundSense */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 515B271C2E6D84830029011E /* Build configuration list for PBXNativeTarget "XamIoT SoundSense" */;
+			buildPhases = (
+				515B26F52E6D84800029011E /* Sources */,
+				515B26F62E6D84800029011E /* Frameworks */,
+				515B26F72E6D84800029011E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				515B26FB2E6D84800029011E /* XamIoT SoundSense */,
+			);
+			name = "XamIoT SoundSense";
+			packageProductDependencies = (
+			);
+			productName = "XamIoT SoundSense";
+			productReference = 515B26F92E6D84800029011E /* XamIoT SoundSense.app */;
+			productType = "com.apple.product-type.application";
+		};
+		515B27072E6D84830029011E /* XamIoT SoundSenseTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 515B271F2E6D84830029011E /* Build configuration list for PBXNativeTarget "XamIoT SoundSenseTests" */;
+			buildPhases = (
+				515B27042E6D84830029011E /* Sources */,
+				515B27052E6D84830029011E /* Frameworks */,
+				515B27062E6D84830029011E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				515B270A2E6D84830029011E /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				515B270B2E6D84830029011E /* XamIoT SoundSenseTests */,
+			);
+			name = "XamIoT SoundSenseTests";
+			packageProductDependencies = (
+			);
+			productName = "XamIoT SoundSenseTests";
+			productReference = 515B27082E6D84830029011E /* XamIoT SoundSenseTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		515B27112E6D84830029011E /* XamIoT SoundSenseUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 515B27222E6D84830029011E /* Build configuration list for PBXNativeTarget "XamIoT SoundSenseUITests" */;
+			buildPhases = (
+				515B270E2E6D84830029011E /* Sources */,
+				515B270F2E6D84830029011E /* Frameworks */,
+				515B27102E6D84830029011E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				515B27142E6D84830029011E /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				515B27152E6D84830029011E /* XamIoT SoundSenseUITests */,
+			);
+			name = "XamIoT SoundSenseUITests";
+			packageProductDependencies = (
+			);
+			productName = "XamIoT SoundSenseUITests";
+			productReference = 515B27122E6D84830029011E /* XamIoT SoundSenseUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		515B26F12E6D84800029011E /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1640;
+				LastUpgradeCheck = 2610;
+				TargetAttributes = {
+					515B26F82E6D84800029011E = {
+						CreatedOnToolsVersion = 16.4;
+					};
+					515B27072E6D84830029011E = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = 515B26F82E6D84800029011E;
+					};
+					515B27112E6D84830029011E = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = 515B26F82E6D84800029011E;
+					};
+				};
+			};
+			buildConfigurationList = 515B26F42E6D84800029011E /* Build configuration list for PBXProject "XamIoT SoundSense" */;
+			developmentRegion = fr;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				fr,
+				Base,
+			);
+			mainGroup = 515B26F02E6D84800029011E;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 515B26FA2E6D84800029011E /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				515B26F82E6D84800029011E /* XamIoT SoundSense */,
+				515B27072E6D84830029011E /* XamIoT SoundSenseTests */,
+				515B27112E6D84830029011E /* XamIoT SoundSenseUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		515B26F72E6D84800029011E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				51E4940E2EBF4F7100F2D816 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		515B27062E6D84830029011E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		515B27102E6D84830029011E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		515B26F52E6D84800029011E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		515B27042E6D84830029011E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		515B270E2E6D84830029011E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		515B270A2E6D84830029011E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 515B26F82E6D84800029011E /* XamIoT SoundSense */;
+			targetProxy = 515B27092E6D84830029011E /* PBXContainerItemProxy */;
+		};
+		515B27142E6D84830029011E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 515B26F82E6D84800029011E /* XamIoT SoundSense */;
+			targetProxy = 515B27132E6D84830029011E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		515B271A2E6D84830029011E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 52P2R277KX;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		515B271B2E6D84830029011E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 52P2R277KX;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		515B271D2E6D84830029011E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "XamIoT SoundSense/XamIoT SoundSense.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 9;
+				DEVELOPMENT_TEAM = 52P2R277KX;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "XamIoT-SoundSense-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = SoundSense;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "XamIoT SoundSense utilise le Bluetooth pour configurer et gérer vos capteurs.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Le Bluetooth est nécessaire pour communiquer avec vos capteurs.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.4;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xamiot.SoundSense;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		515B271E2E6D84830029011E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "XamIoT SoundSense/XamIoT SoundSense.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 9;
+				DEVELOPMENT_TEAM = 52P2R277KX;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "XamIoT-SoundSense-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = SoundSense;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "XamIoT SoundSense utilise le Bluetooth pour configurer et gérer vos capteurs.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Le Bluetooth est nécessaire pour communiquer avec vos capteurs.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.4;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xamiot.SoundSense;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		515B27202E6D84830029011E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 52P2R277KX;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.xamiot.XamIoT-SoundSenseTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/XamIoT SoundSense.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/XamIoT SoundSense";
+			};
+			name = Debug;
+		};
+		515B27212E6D84830029011E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 52P2R277KX;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.xamiot.XamIoT-SoundSenseTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/XamIoT SoundSense.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/XamIoT SoundSense";
+			};
+			name = Release;
+		};
+		515B27232E6D84830029011E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 52P2R277KX;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.xamiot.XamIoT-SoundSenseUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "XamIoT SoundSense";
+			};
+			name = Debug;
+		};
+		515B27242E6D84830029011E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 52P2R277KX;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.xamiot.XamIoT-SoundSenseUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "XamIoT SoundSense";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		515B26F42E6D84800029011E /* Build configuration list for PBXProject "XamIoT SoundSense" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				515B271A2E6D84830029011E /* Debug */,
+				515B271B2E6D84830029011E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		515B271C2E6D84830029011E /* Build configuration list for PBXNativeTarget "XamIoT SoundSense" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				515B271D2E6D84830029011E /* Debug */,
+				515B271E2E6D84830029011E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		515B271F2E6D84830029011E /* Build configuration list for PBXNativeTarget "XamIoT SoundSenseTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				515B27202E6D84830029011E /* Debug */,
+				515B27212E6D84830029011E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		515B27222E6D84830029011E /* Build configuration list for PBXNativeTarget "XamIoT SoundSenseUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				515B27232E6D84830029011E /* Debug */,
+				515B27242E6D84830029011E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 515B26F12E6D84800029011E /* Project object */;
+}

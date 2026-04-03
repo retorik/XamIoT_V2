@@ -1,0 +1,9 @@
+services:
+  xamiot-admin-ui:
+    build:
+      context: ./admin-ui
+      args:
+        VITE_API_BASE: "http://localhost:4000"
+    container_name: xamiot-admin-ui-dev
+    ports:
+      - "5174:80"

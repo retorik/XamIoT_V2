@@ -1,0 +1,714 @@
+Tu travailles sur mon projet XamIoT.
+
+Contexte très important :
+- Ne casse surtout rien sur mon serveur VPS / Ionos.
+- J’ai déjà des containers Docker Compose en place pour Mailu, Traefik, mon API XamIoT, Mosquitto MQTT, PostgreSQL et des WordPress.
+- Il faut travailler d’abord sur le VPS de DEV uniquement.
+- Il faut prévoir proprement la PROD ensuite, sans duplication inutile ni bricolage.
+- Il faut documenter précisément tout ce que tu fais pour éviter que j’aie à répéter les besoins lors des prochaines retouches.
+- Je veux une approche propre, robuste, sécurisée, maintenable, avec tests.
+- Il faut toujours privilégier une solution qui s’intègre à l’existant, avec minimum de régression.
+- Important : penser aux URLs dynamiques selon l’environnement DEV ou PROD.
+- Important : ne jamais casser l’API existante ni les apps iOS / Android ; les adapter proprement uniquement si nécessaire.
+- Important : ne fais aucune modification risquée sur la PROD. Toute la mise en place initiale se fait sur DEV.
+- Important : toute évolution infra doit être isolée, explicitée et réversible.
+- Important : je veux un vrai travail d’architecture, d’audit, de sécurité, de tests et de documentation, pas un bricolage.
+
+Objectif global :
+Refondre le site internet XamIoT en site dynamique relié au backoffice, avec :
+- CMS/pages dynamiques
+- médiathèque
+- boutique en ligne
+- multilingue FR / EN / ES
+- intégration Stripe
+- espace client / portail client
+- tickets support
+- RMA
+- commandes
+- expéditions
+- factures PDF
+- intégration avec l’API XamIoT
+- sécurité renforcée
+- configuration des limites et du rate limiting administrable depuis le backoffice
+
+Domaines / URLs à prévoir :
+DEV :
+- site public : xamsite.holiceo.com
+- portail client : xamcli.holiceo.com
+
+PROD :
+- site public : https://xamiot.com
+- alias public : https://www.xamiot.com
+- portail client : https://client.xamiot.com
+
+Important :
+- la valeur des URLs doit être centralisée proprement par environnement
+- stocker explicitement l’URL du site DEV dans le fichier claude.md du projet
+- prévoir le remplacement futur de l’actuel WordPress de xamiot.com par ce nouveau site dynamique
+- en DEV on met en place la nouvelle architecture sans impacter la PROD
+- la mise en production devra ensuite permettre de supprimer proprement le WordPress de xamiot.com
+- penser aussi aux URLs dynamiques dans les emails, les liens publics, les pages de test, les redirections, le portail client et les apps (validation des comptes et modification de mots de passe perdus)
+
+Fonctionnalités attendues :
+
+1) Site public dynamique relié au backoffice
+Je veux que tu me refasses un site dynamique sur le principe du site https://xamiot.com, mais administrable depuis le backoffice.
+
+Le contenu du site doit être géré depuis le backoffice.
+Une page = un lien dans le menu.
+
+Prévoir la gestion complète des pages :
+- création
+- modification
+- suppression
+- ordre d’affichage
+- slug / URL
+- statut brouillon / publié / archivé si pertinent
+- title SEO
+- meta description SEO
+- contenu riche
+- possibilité d’associer des médias
+- éventuellement sections/blocs si cela rend le système plus souple et maintenable
+
+Le menu du site doit être piloté dynamiquement par les pages publiées et leur ordre.
+
+2) Gestion des médias dans le backoffice
+Je veux une vraie médiathèque dans le backoffice.
+Elle doit permettre d’uploader, organiser et réutiliser :
+- photos
+- illustrations
+- documents
+- fichiers utiles au site
+- fichiers utiles à la boutique
+
+Les médias doivent pouvoir être insérés dans les pages, les contenus dynamiques, les fiches produits et éventuellement les emails si pertinent.
+
+Prévoir :
+- upload
+- suppression
+- renommage
+- alt text
+- aperçu
+- type MIME
+- taille
+- dimensions si image
+- URL publique ou URL de service si pertinent
+- classement simple / dossiers ou tags si utile
+- réutilisation propre sans duplication fragile
+
+3) Pages “tests” iOS et Android dynamiques
+Je veux mettre en ligne de façon dynamique les pages de test iOS et Android.
+Il faut générer au moins une première version automatiquement.
+
+Ensuite je dois pouvoir éditer :
+- le contenu
+- les textes
+- la mise en page
+- les photos
+- les liens
+- les médias
+
+Ces pages doivent être totalement administrables depuis le backoffice.
+Penser impérativement aux URLs dynamiques DEV / PROD.
+Si les apps ou les emails utilisent ces liens, ils doivent automatiquement utiliser les bonnes URLs selon l’environnement.
+
+4) Multilingue FR / EN / ES
+Le site public, la boutique et le portail client doivent être multilingues :
+- Français
+- Anglais
+- Espagnol
+
+Exigences :
+- la langue source d’édition est le français
+- prévoir un mécanisme de traduction automatique initiale vers anglais et espagnol
+- choisir un moteur pertinent, si possible économique ou gratuit pour démarrer, mais fiable
+- je dois pouvoir modifier le texte français après coup
+- je dois pouvoir corriger manuellement les traductions
+- je dois pouvoir relancer la traduction si nécessaire
+- il faut stocker proprement les traductions
+- il ne faut pas faire un système figé ou impossible à maintenir
+
+Merci de proposer une architecture de traduction propre et éditable.
+
+5) Boutique en ligne / catalogue produits
+Je veux une petite boutique en ligne pour vendre des produits comme mon capteur ESP32 SoundSense, et d’autres produits plus tard.
+
+Prévoir la gestion des produits depuis le backoffice :
+- création
+- modification
+- suppression
+- publication / dépublication
+- ordre d’affichage
+- SKU / référence
+- prix
+- éventuel prix barré / promo si pertinent
+- remise exeptionnelle
+- description courte
+- description longue
+- médias / photos / documents
+- stock
+- statut actif / inactif
+- catégories si pertinent
+- poids / dimensions si utile pour expédition
+- frais de port par destination (pays)
+- taxes suivant destination (pays)
+- variantes si tu juges cela utile ou à prévoir pour plus tard
+
+Affichage public :
+- liste produits
+- page détail produit
+- descriptif
+- visuels
+- prix
+- disponibilité si pertinent
+
+6) Panier / commande / checkout
+Je veux prévoir :
+- panier
+- quantité
+- mise à jour des quantités
+- suppression d’article
+- checkout
+- saisie d’adresse
+- récapitulatif commande
+- validation claire avant paiement
+
+Prévoir :
+- discount selon quantité
+- frais de port par pays
+- taxes par pays
+- total détaillé
+- calcul cohérent et traçable
+- gestion saine des états de commande
+
+Je veux que les règles principales soient administrables depuis le backoffice autant que possible.
+
+7) Stripe
+Je veux intégrer Stripe pour les paiements boutique.
+
+Dans le backoffice, dans Paramètres, il faut ajouter un onglet Stripe permettant de configurer :
+- les éléments de configuration du compte Stripe
+- séparation DEV / PROD
+- les clés nécessaires
+- les options utiles au checkout si pertinent
+
+Exigences :
+- stockage sécurisé des secrets
+- aucune clé sensible exposée inutilement
+- bonne séparation des environnements
+- sécurisation des webhooks Stripe
+- idempotence sur les traitements critiques
+- rapprochement entre paiement, commande, facture et client
+
+Je veux aussi dans le backoffice la gestion / visibilité sur :
+- logs de paiement
+- échecs
+- validations
+- annulations
+- remboursements
+- litiges si pertinent
+- événements webhooks
+- rapprochement des données
+
+8) Emails boutique / commandes / support
+Je veux des emails personnalisables.
+Je dois pouvoir modifier leur contenu depuis le backoffice ou via un système propre de templates si tu juges cela préférable.
+
+Prévoir au minimum :
+- confirmation de commande
+- paiement validé
+- paiement échoué
+- commande expédiée
+- remboursement
+- création de ticket support
+- réponse support si pertinent
+- ouverture / mise à jour RMA
+- confirmation de compte
+- mot de passe oublié
+- réinitialisation de mot de passe
+
+Les emails doivent idéalement pouvoir être multilingues.
+Les liens contenus dans les emails doivent utiliser les bonnes URLs DEV / PROD automatiquement.
+
+9) Portail client / espace client
+Créer un espace client distinct :
+DEV :
+- xamcli.holiceo.com
+
+PROD :
+- client.xamiot.com
+
+Dans cet espace client, l’utilisateur doit pouvoir gérer :
+- son compte utilisateur
+- ses devices
+- ses règles d’alertes
+- ses logs d’alertes
+- ses achats
+- ses commandes
+- ses factures
+- export / téléchargement PDF de ses factures
+- ses tickets de support
+- ses demandes de RMA
+- le suivi de ses commandes / expéditions
+- éventuellement l’état des services si pertinent
+
+Très important :
+- pour les devices / alertes / logs, il faut s’interfacer avec l’API XamIoT existante
+- afficher les derniers logs sous formes graphiques comme dans l’app iOS ou Android et les dernieres alertes
+- le portail client doit être simple, propre, ergonomique, responsive et sécurisé
+- chaque client ne doit voir strictement que ses propres données
+- prevoir un site compatible sur les mobiles
+
+10) Support / tickets / RMA
+Je veux une vraie gestion support et RMA.
+
+Dans le backoffice :
+- liste des tickets
+- détail ticket
+- statuts
+- historique
+- affectation si pertinent
+- lien avec client
+- lien avec commande
+- lien avec produit
+- pièces jointes si pertinent
+- journal d’actions
+- visibilité claire des statuts et décisions
+- interface de reponse des tickets et statuts
+
+Gestion RMA :
+- création de dossier RMA lie a un ticket de support
+- lien avec client / commande / produit
+- états de traitement
+- historique
+- suivi expédition / retour
+- pièces jointes / photos si utile
+- journal d’actions
+- décisions / validation / refus motivé si pertinent
+
+Côté client :
+- fiche client avec ses informations
+- création de ticket
+- consultation
+- suivi
+- réponses
+- ouverture de demande RMA lies a un ticket
+- suivi de l’avancement
+- dépôt de justificatifs / photos si nécessaire
+
+11) Authentification / sécurité / compte
+Je veux renforcer fortement la gestion de compte avec de vraies bonnes pratiques.
+
+À prévoir :
+- inscription utilisateur (que depuis les apps IOS ou Android)
+- envoi d’un email avec lien de confirmation de compte / lien avec token
+- mot de passe oublié / lien de reset par token
+- changement de mot de passe sécurisé
+- messages propres
+- ergonomie simple
+- sécurité solide
+
+Il faut aussi prévoir tout ce qui permet de sécuriser :
+- les comptes clients
+- les paiements
+- les suivis de commande
+- le support
+- les procédures RMA toujours lie a un ticket support
+- les accès au portail client
+- les actions administratives sensibles
+
+Je veux explicitement :
+- hash de mot de passe robuste
+- tokens sécurisés
+- expiration correcte des tokens
+- invalidation correcte des tokens
+- validation stricte des entrées
+- protection contre brute force
+- protection contre credential stuffing
+- protection XSS
+- protection injection
+- protection IDOR
+- protection mass assignment
+- contrôle d’accès fin par rôle et propriété des ressources
+- séparation stricte des rôles et permissions
+- audit trail des actions sensibles
+- journalisation de sécurité
+- historique fiable des changements de statut
+- mécanisme empêchant la falsification manuelle d’un paiement, d’un remboursement, d’un suivi ou d’un état RMA
+- notifications d’événements critiques si pertinent
+- conservation cohérente des preuves utiles pour support / RMA
+- politique de rétention des logs
+- gestion correcte des sessions / déconnexions
+- politique de mot de passe raisonnable
+- architecture permettant plus tard d’ajouter du MFA / 2FA sans refonte lourde
+
+12) Rate limiting et limites de sécurité administrables depuis le backoffice
+Je veux que le système prévoie une vraie gestion centralisée et administrable depuis le backoffice pour les limites de sécurité.
+
+Il faut prévoir des règles configurables depuis le backoffice sur :
+- login compte client
+- création de compte
+- confirmation de compte
+- mot de passe oublié
+- reset mot de passe
+- accès portail client
+- checkout
+- paiements
+- webhooks Stripe si pertinent
+- création de ticket support
+- ouverture de RMA
+- endpoints sensibles de l’API
+- éventuellement backoffice admin sur les actions sensibles si pertinent
+
+Je veux que ces limites soient configurables depuis le backoffice sans devoir modifier le code à chaque changement.
+
+À prévoir dans le backoffice :
+- une section Sécurité ou Rate Limit dans Paramètres
+- possibilité de définir par type d’action :
+  - nombre maximal de tentatives
+  - fenêtre de temps
+  - durée de blocage
+  - comportement en cas de dépassement
+  - message utilisateur affiché
+- possibilité de distinguer les limites par :
+  - IP
+  - compte utilisateur
+  - email
+  - combinaison IP + compte si pertinent
+  - route / catégorie fonctionnelle
+- possibilité d’activer ou désactiver certaines protections de manière granulaire
+- possibilité d’avoir des valeurs différentes entre DEV et PROD si pertinent
+
+Je veux aussi une vraie gestion des limites de login du compte client :
+- limitation du nombre d’essais de connexion
+- blocage temporaire progressif
+- éventuellement escalade de durée de blocage
+- journalisation des tentatives échouées
+- visibilité dans le backoffice des comptes / IP temporairement bloqués
+- possibilité de débloquer proprement un compte ou une IP depuis le backoffice
+- horodatage du dernier échec
+- compteur de tentatives
+- remise à zéro contrôlée après succès ou expiration
+- ne pas révéler trop d’informations à l’utilisateur lors d’un échec
+
+Je veux aussi que le backoffice permette de voir :
+- les événements de rate limiting
+- les blocages en cours
+- les comptes verrouillés temporairement
+- les IP bloquées temporairement
+- les causes de blocage
+- les routes ou catégories les plus touchées
+- un historique exploitable pour audit sécurité
+- il faudra que tout soit logguer, paiements, creations, enrollement de device, modifications, suppresson cote apps (ios et android) et backoffice et clients ... dans un audit trail performant et avec un recherche par tous les criteres
+
+Je veux également prévoir :
+- une whitelist / allowlist administrable si pertinent
+- une blacklist / denylist si pertinent
+- la possibilité de désactiver ou ajuster temporairement une règle sans la supprimer
+- un audit trail des changements de configuration de sécurité effectués par les administrateurs
+
+Important :
+- la sécurité doit être pensée pour éviter le brute force, les abus, le credential stuffing, les doubles soumissions et certaines fraudes basiques
+- les traitements critiques doivent être idempotents quand nécessaire
+- les limitations ne doivent pas casser l’expérience utilisateur normale
+- il faut distinguer les limites fonctionnelles des limites de sécurité
+- il faut documenter précisément les règles par défaut recommandées
+
+13) API XamIoT existante
+Il faut auditer l’API existante avant de coder.
+Travaille en priorité avec l’existant et étends-le proprement.
+
+API connue actuellement d’après ma collection :
+- auth/login
+- auth/signup
+- esp-devices
+- esp-rules
+- esp-alerts
+- devices
+- health
+
+Consignes :
+- identifier ce qui existe déjà
+- identifier ce qu’il manque pour :
+  - confirmation email
+  - reset password
+  - portail client
+  - CMS/pages/menu
+  - médiathèque
+  - boutique
+  - commandes
+  - paiements
+  - factures
+  - support
+  - RMA
+  - traductions
+  - sécurité / rate limiting administrable
+- proposer une extension d’API propre et cohérente
+- versionner si nécessaire
+- ne pas casser les routes existantes
+- ne pas casser les apps mobiles existantes
+- prévoir les migrations SQL propres
+- si possible prévoir des migrations réversibles
+
+14) Apps iOS / Android
+Pense aux impacts iOS et Android.
+- modifier les apps seulement si nécessaire
+- ne rien casser
+- prévoir ce qu’il faut pour qu’elles puissent consommer les nouvelles URLs dynamiques DEV / PROD si elles affichent des liens externes vers site / portail client / support / pages de test
+- si des écrans ou liens doivent pointer vers les nouvelles pages, le documenter clairement
+- si aucune modification n’est strictement nécessaire, le dire explicitement
+
+15) Architecture technique
+Je veux une solution propre, industrialisable et maintenable.
+
+Merci de :
+- auditer l’existant
+- proposer l’architecture cible
+- détailler les services / containers nécessaires
+- préciser les réseaux Docker à utiliser sans casser Traefik / Mailu / API / Mosquitto / PostgreSQL / WordPress existants
+- utiliser Traefik proprement
+- prévoir DEV et PROD proprement
+- éviter toute régression sur le VPS
+
+Important :
+- ne rien déployer en cassant les stacks existantes
+- ne jamais modifier brutalement la PROD
+- travailler d’abord en DEV
+- si un remplacement de WordPress est prévu, l’isoler tant que la bascule n’est pas validée
+- aucune hypothèse infra importante ne doit être implicite
+
+16) Backoffice : modules à prévoir
+Je veux que tu proposes et implémentes les modules backoffice nécessaires, notamment :
+- gestion des pages
+- gestion du menu / ordre
+- gestion des médias
+- gestion des produits
+- gestion des commandes
+- gestion des paiements
+- gestion des expéditions
+- gestion des factures
+- gestion support / tickets
+- gestion RMA
+- gestion Stripe
+- gestion sécurité / rate limiting
+- visualisation des blocages
+- déblocage compte / IP
+- audit trail des événements sensibles
+- paramètres multilingues si pertinent
+- templates emails si pertinent
+
+17) Attendus concrets dans ta réponse
+Je veux un vrai travail d’ingénierie, pas juste un brouillon.
+
+Je veux dans ta réponse :
+A. Un audit de l’existant et des impacts
+B. Une proposition d’architecture détaillée
+C. Le schéma de données / nouvelles tables nécessaires
+D. Les endpoints API à ajouter / modifier
+E. Les écrans / modules backoffice à créer
+F. Les écrans / modules portail client à créer
+G. La stratégie multilingue
+H. La stratégie Stripe / checkout / facture PDF
+I. La stratégie support / tickets / RMA
+J. La stratégie sécurité / authentification / email confirmation / reset password
+K. La stratégie de rate limiting, verrouillage temporaire, limites de login et administration de ces règles depuis le backoffice
+L. La stratégie DEV / PROD / URLs dynamiques
+M. Les impacts iOS / Android
+N. Un plan d’implémentation par étapes
+O. Les tests à prévoir
+P. La documentation à créer / mettre à jour, dont claude.md
+
+18) Exigences d’implémentation
+- toujours documenter précisément les fichiers modifiés
+- fournir les migrations SQL
+- fournir les tests unitaires
+- fournir si possible des tests d’intégration / e2e
+- prévoir des seeds de démo si utile pour DEV
+- ajouter les logs utiles
+- garder une ergonomie simple et propre
+- respecter les bonnes pratiques sécurité
+- respecter le responsive
+- prévoir la maintenabilité long terme
+
+19) Contraintes majeures
+- ne casse rien sur mon VPS
+- ne touche pas de manière risquée à Mailu, Traefik, Mosquitto, PostgreSQL, API XamIoT, WordPress existants
+- si une modification infra est nécessaire, l’isoler et l’expliquer
+- toujours distinguer DEV et PROD
+- toujours utiliser des URLs dynamiques selon l’environnement
+- toujours penser migration progressive
+- toujours éviter les régressions
+
+20) Méthode de travail demandée
+1. Commence par auditer l’existant et lister les écarts.
+2. Propose l’architecture cible détaillée.
+3. Propose un plan de réalisation par lots.
+4. Ensuite seulement, implémente lot par lot avec code complet, migrations, tests et documentation.
+5. Après chaque lot, fais un récapitulatif avec :
+   - fichiers modifiés
+   - migrations
+   - variables d’environnement
+   - impacts infra
+   - tests réalisés
+   - risques éventuels
+6. Ne fais pas d’hypothèses silencieuses importantes : documente-les.
+7. Si un choix technique est structurant, explique brièvement pourquoi.
+8. Si un point touche à la sécurité, aux paiements ou au RMA, sois particulièrement rigoureux et traçable.
+
+Important final :
+- Commence par me fournir l’audit, l’architecture cible, le modèle de données proposé, les endpoints à créer, les impacts sur l’existant, puis un plan de mise en œuvre par phases.
+- Ensuite seulement passe à l’implémentation.
+- Priorité absolue : ne rien casser sur mon environnement VPS existant.
+
+
+Deepl : 67514206-8985-48ac-b46d-6a0d14d2e484:fx
+
+
+dans la page Medias l'import d'une image fait : invalid_token 
+il faut ajouter dans l'onglet en haut au milieu du back office, l'etat aussi du paiement stripe (operationnel dev ou prod, hs,  ....) 
+il ne faut pas oublier ces rubrique dans le cms : Politique de confidentialité · Conditions d’utilisation · Conditions d’abonnement · CGV – Acheter SoundSense · Aide en ligne · Contact support                                                                        
+ + voir sur le site actuel  
+ + il faut pouvoir definir dans le cms si la page doit apparaitre dans le menu en haut de page ou pas et en lien dans le pied de page ou pas 
+ + il faut pouvoir choisir un logo pour le site depuis la partie cms pour mettre en haut a gauche du site et definir la taille
+ + le site internet public sera multi langue prevoir les logos en fonction des langues possible pourn changer la langue  
+ + il faut prevoir un lien sur le site envoyer vers le portail client (gestion comptes, tickets, support, ...) 
+
+ + je ne vois pas ou gerer les logo pour le choix depuis les medias                                         + reparer le favoricon, il n'est pas present
+ + l'ajout des liens dans le menu ou le pied de page ne fonctionne pas, les liens doivent apparaitre sur le site                                                                                                       + je ne vois pas ou configurer stripe
+ + je ne vois pas la page boutique pour commander, panier, commande ... il faut notifier qu'un compte (avec email verifier) dans l'app est obligatoire pour commander
+ + Il faut un lien vers le portail client dynamic suivant si je suis en dev ou prod, attention le login ne fonctionne pas pour le momment : Une erreur est survenue. Veuillez réessayer. 
++ Je ne vois pas les elements que j'ai demande dans le rate limit, portail, portail client, commandes, ... relire ma demande initiale
++ Mettre les drapeaux dans le selecteur de langue 
++ Les produits doivent etre vendus et disponible sur le site internet public, il faut creer une page boutique sur le site publique, biensur un compte devra etre creer et mail confirmer pour la commande ce qui ouvrira un compte pour les apps aussi.  
++ Dans le portail client, il faut dans les appareils les mobiles  
++ stp prend le meme favoricon que sur le site admin pour le site public et le portail client 
++ dans le dashboard du backoffice mettre les tickets en cours/total et idem rma, idem commandes en cours/terminees     
++ DAns retention des logs MQTT ajouter un max en nombre de logs par device \
++ le favoricon du site public et du portail client doivent etre les memes que celui de mon backoffice       
+
+ok donc il y a des bugs : 
+Back office :
+	Fait + impossible de mettre une image dans les media, elle devient corrompu
++ l'audit trail doit donner plus de details des choses modifie, supprime, creer et entre autre le user connecte
++ Ip dans l'audit trail n'est pas bonne c'est l ip de ma box, il faut l'ip public internet
+	Fait + important je ne peux pas configurer stripe  
+
+	fait + Pour la partie CMS, je voudrais pouvoir changer l'ordre des page depuis la liste juste par des deplacer/ glisser, et ajouter la
+	possibilite de cocher decocher, le fait d etre publeir sur le menu de nav et/ou pied de page depuis cette liste aussi, cela      
+	permet une meilleur gestion
+
++ penses a loguer tous les paiements, webhookc ... stripe dans le Audit Logs 
+
+
+sur le site public : 
++ pas les liens de menu en haut et les liens en pieds de page absents
++ je ne peux pas changer le logo du site peut ewtre du au fait que les images dans les medias du backoffice ne fonctionnent pas
++ le bouton mon espace doit etre un lien comme les autres, il faut aussi une page contact de base et un lien support qui envoi aussi sur le portail client
++ merci de capture tous les textes des pages sur le site actuel xamiot.com pour generer le contenu des pages du CMS pour avoir deja une base a modifier 
+
+portail client :
++ tableau de bord doit afficher les devices, mobiles, alertes, notifications mobiles et on peux cliquer dessus pour acceder directement a son detail et possibilite de configuration
++ Les devices doivent afficher comme sur les apps un petit bar graph des 30 derniers mesures (logs Mqtt, regarder ce que les app IOS appel comme endpoint de l'api pour ca, ne pas toucher a l'api)
++ dans mes appareils je ne peux pas acceder a son details et encore moins a la config (voir idem Tableau de bord sur cliques des appareils)
++ il faut ajouter une gestion des regles des devices du compte utilisateurs (modifications complete doivent possible)
++ il faut avoir les logs de alertes dans un menu avec un moteur de recherche
++ par rapport a mes demandes voir comment ameliorer la page notifications ...
++ dans on profil, je dois pouvoir editer , nom, prenom, telephone et le mot de passe 
++ tableau de board et page mes appareils si je clic sur les devices j'ai un erreur et pour le mobile rien, je dois voir le detail
++ boutique et mon panier : pas lieu d'etre ici, sauf si tu y vois un interet ? / il faut retirer decrouvirir boutique dans mes commandes
++ les notifications doivent etre finilisee et elle doivent etre en fonction du devices, tu parles bien des regels d'alertes ?
++ impossible dáffiche le profil j ai l erreur : Impossible de charger votre profil.
+
+Dans les liens qui apparaissent sur la barre de nav du site internet il y a un lien contact que je ne peux pas gerer, est ce dure ? je ne veux pas l avoir je veux le gerer en dynamic d'ailleurs ma page contact qui existe cote backoffice CMS, devrait inclure un formulaire de contact et du texte avant et apres configurable. Dans le formulaire mettre les champs : Nom, prenom, telephone, email, Commentaires et un captcha ou gerer ca depuis le rate limit (que je veux parametrable) 
+
+
+App Android :                                                                                                        
++ Il faudrait un spinner pendant la suppression d'un device car c est long et on croit qu'il est pas supprime                         
++ dans la page d enrollement d un device j ávais demande que le bouton "pousser les identifiants wifi" disparaissent et que           
+l'enregistrement wifi et mqtt par BLE se fasse au moment du clic sur le bouton "Creer peripherique" bien sur afficher les etapes au   
+dessus du bouton et gerer les erreurs necessaire                                                                                      
++ je voulais que toutes les fenetres de suppression ou confirmation soient plus design et pas un air de mode noir et blanc de geek 
+
+  ---
+  Back-office (xamiot.holiceo.com)
+
+  ┌─────────────────────┬────────┬─────────────────────────────────────────────┐
+  │       Section       │ Statut │                 Où trouver                  │
+  ├─────────────────────┼────────┼─────────────────────────────────────────────┤
+  │ Rate Limit          │ ✅     │ Paramètres → onglet "Rate Limit"            │
+  ├─────────────────────┼────────┼─────────────────────────────────────────────┤
+  │ Commandes           │ ✅     │ Sidebar → "Commandes"                       │
+  ├─────────────────────┼────────┼─────────────────────────────────────────────┤
+  │ Boutique (produits) │ ✅     │ Sidebar → "Boutique"                        │
+  ├─────────────────────┼────────┼─────────────────────────────────────────────┤
+  │ Support / Tickets   │ ✅     │ Sidebar → "Support"                         │
+  ├─────────────────────┼────────┼─────────────────────────────────────────────┤
+  │ RMA                 │ ✅     │ Sidebar → "RMA"                             │
+  ├─────────────────────┼────────┼─────────────────────────────────────────────┤
+  │ Audit logs          │ ✅     │ Sidebar → "Audit logs"                      │
+  ├─────────────────────┼────────┼─────────────────────────────────────────────┤
+  │ Stripe status       │ ✅     │ Barre d'état en haut                        │
+  ├─────────────────────┼────────┼─────────────────────────────────────────────┤
+  │ Stripe config       │ ⏳     │ Agent en cours → Paramètres onglet "Stripe" │
+  ├─────────────────────┼────────┼─────────────────────────────────────────────┤
+  │ Logo depuis médias  │ ⏳     │ Agent en cours → Paramètres section Logo    │
+  └─────────────────────┴────────┴─────────────────────────────────────────────┘
+
+  Portail client (xamcli.holiceo.com)
+
+  ┌─────────────────────┬────────┬──────────────────────────────────┐
+  │       Section       │ Statut │               Note               │
+  ├─────────────────────┼────────┼──────────────────────────────────┤
+  │ Boutique            │ ✅     │ /boutique                        │
+  ├─────────────────────┼────────┼──────────────────────────────────┤
+  │ Panier              │ ✅     │ /panier                          │
+  ├─────────────────────┼────────┼──────────────────────────────────┤
+  │ Commande / Checkout │ ✅     │ /commande                        │
+  ├─────────────────────┼────────┼──────────────────────────────────┤
+  │ Support / Tickets   │ ✅     │ /support                         │
+  ├─────────────────────┼────────┼──────────────────────────────────┤
+  │ Mes commandes       │ ❌     │ Pas implémenté                   │
+  ├─────────────────────┼────────┼──────────────────────────────────┤
+  │ Mes appareils       │ ❌     │ Lien pointe sur /dashboard (bug) │
+  ├─────────────────────┼────────┼──────────────────────────────────┤
+  │ Login portail       │ ❌     │ Agent en cours d'investigation   │
+  └─────────────────────┴────────┴──────────────────────────────────┘
+
+ 
+  ┌────────────────────────────────────┬───────────────────────────────────────────┬───────────────────────────────────────────────┐
+  │              Problème              │                   Cause                   │                    Corrigé                    │
+  ├────────────────────────────────────┼───────────────────────────────────────────┼───────────────────────────────────────────────┤
+  │ Login portail CORS                 │ xamcli.holiceo.com absent de CORS_ORIGINS │ ✅ VPS + .env.example                         │
+  ├────────────────────────────────────┼───────────────────────────────────────────┼───────────────────────────────────────────────┤
+  │ Pages CMS pas visibles             │ Statut draft                              │ ✅ Publiées en DB                             │
+  ├────────────────────────────────────┼───────────────────────────────────────────┼───────────────────────────────────────────────┤
+  │ Liens menu/footer pas visibles     │ Pages en draft                            │ ✅ + warning dans PageEditor si draft + coché │
+  ├────────────────────────────────────┼───────────────────────────────────────────┼───────────────────────────────────────────────┤
+  │ Drapeaux sélecteur de langue       │ Absent                                    │ ✅ 🇫🇷/🇬🇧/🇪🇸 ajoutés                           │
+  ├────────────────────────────────────┼───────────────────────────────────────────┼───────────────────────────────────────────────┤
+  │ Favicon site absent                │ Pas de fichier                            │ ✅ app/icon.svg créé                          │
+  ├────────────────────────────────────┼───────────────────────────────────────────┼───────────────────────────────────────────────┤
+  │ "Mes appareils" portail lien cassé │ Pointait sur /dashboard                   │ ✅ Corrigé vers /devices                      │
+  ├────────────────────────────────────┼───────────────────────────────────────────┼───────────────────────────────────────────────┤
+  │ "Mes commandes" portail absent     │ Non implémenté                            │ ✅ Lien ajouté sidebar (page à créer)         │
+  ├────────────────────────────────────┼───────────────────────────────────────────┼───────────────────────────────────────────────┤
+  │ Rate limit login portail           │ Question                                  │ ℹ️  Déjà actif via authLimiter                 │
+  └────────────────────────────────────┴───────────────────────────────────────────┴───────────────────────────────────────────────┘
+
+   CLAUDE.md — tableau URLs complet :                                                                                           
+                                                                                                                                   
+  ┌────────────────┬───────────────────────┬────────────────────────────────────┐
+  │    Service     │          Dev          │                Prod                │                                                  
+  ├────────────────┼───────────────────────┼────────────────────────────────────┤
+  │ Backoffice     │ xamiot.holiceo.com    │ admin.xamiot.com                   │                                              
+  ├────────────────┼───────────────────────┼────────────────────────────────────┤
+  │ API            │ apixam.holiceo.com    │ api.xamiot.com                     │                                                  
+  ├────────────────┼───────────────────────┼────────────────────────────────────┤
+  │ Portail client │ xamcli.holiceo.com    │ portail.xamiot.com                 │                                                  
+  ├────────────────┼───────────────────────┼────────────────────────────────────┤                                                  
+  │ Site web       │ xamsite.holiceo.com   │ xamiot.com / http://www.xamiot.com │                                              
+  ├────────────────┼───────────────────────┼────────────────────────────────────┤                                                  
+  │ MQTT           │ mqtt.holiceo.com:8883 │ mqtt.xamiot.com:8883               │
+  └────────────────┴───────────────────────┴────────────────────────────────────┘                                                  
+                                                 
+  Règle gravée : 192.168.1.6 = SSH uniquement. Jamais dans le code applicatif.            
