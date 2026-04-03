@@ -1,0 +1,1961 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { apiFetch } from '../api.js';
+
+const TABS = [
+  { key: 'smtp',       label: 'SMTP' },
+  { key: 'retention',  label: 'Rétention des logs' },
+  { key: 'ratelimit',  label: 'Rate limits' },
+  { key: 'portal',     label: 'Portail client' },
+  { key: 'apns',       label: 'iOS (APNS)' },
+  { key: 'fcm',        label: 'Android (FCM)' },
+  { key: 'translation',label: 'Traduction (DeepL)' },
+  { key: 'stripe',     label: 'Stripe' },
+];
+
+export default function Settings() {
+  const [tab, setTab] = useState('smtp');
+
+  return (
+    <div className="container">
+      <h2>Paramètres</h2>
+
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid #e5e7eb', paddingBottom: 0, flexWrap: 'wrap' }}>
+        {TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '8px 16px', fontSize: 14, fontWeight: 500,
+              color: tab === t.key ? '#2563eb' : '#6b7280',
+              borderBottom: tab === t.key ? '2px solid #2563eb' : '2px solid transparent',
+              marginBottom: -1,
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'smtp'        && <SmtpSection />}
+      {tab === 'retention'   && <RetentionSection />}
+      {tab === 'ratelimit'   && <RateLimitSection />}
+      {tab === 'portal'      && <PortalSection />}
+      {tab === 'apns'        && <ApnsSection />}
+      {tab === 'fcm'         && <FcmSection />}
+      {tab === 'translation' && <TranslationSection />}
+      {tab === 'stripe'      && <StripeSection />}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------
+ *  Helpers partagés
+ * ---------------------------------------------------------------- */
+function MsgBanner({ msg }) {
+  if (!msg) return null;
+  return (
+    <div style={{
+      padding: '10px 14px', marginBottom: 16, borderRadius: 8,
+      background: msg.type === 'success' ? '#dcfce7' : '#fee2e2',
+      color:      msg.type === 'success' ? '#15803d' : '#b91c1c',
+      fontWeight: 500, fontSize: 14,
+    }}>
+      {msg.text}
+    </div>
+  );
+}
+
+function ConfigStatus({ configured, label, updatedAt }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      {configured
+        ? <span style={{ color: '#22c55e', fontWeight: 600 }}>
+            {label} configuré ✅{updatedAt ? ` — mis à jour le ${new Date(updatedAt).toLocaleString('fr-FR')}` : ''}
+          </span>
+        : <span style={{ color: '#f59e0b', fontWeight: 600 }}>{label} non configuré ⚠️</span>
+      }
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------
+ *  iOS APNS
+ * ---------------------------------------------------------------- */
+const EMPTY_APNS = { team_id: '', key_id: '', bundle_id: '', key_pem: '', apns_env: 'sandbox' };
+
+function ApnsSection() {
+  const [status, setStatus]   = useState(null);
+  const [form, setForm]       = useState(EMPTY_APNS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
+  const [msg, setMsg]         = useState(null);
+  const fileRef               = useRef();
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true); setMsg(null);
+    try {
+      const data = await apiFetch('/admin/apns');
+      setStatus(data);
+      if (data.configured) {
+        setForm({ team_id: data.team_id, key_id: data.key_id, bundle_id: data.bundle_id, key_pem: '', apns_env: data.apns_env || 'sandbox' });
+      }
+    } catch (e) {
+      setMsg({ type: 'error', text: e.message || 'Erreur chargement' });
+    } finally { setLoading(false); }
+  }
+
+  function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setForm(f => ({ ...f, key_pem: ev.target.result }));
+    reader.readAsText(file);
+  }
+
+  async function handleSave(e) {
+    e.preventDefault();
+    if (!form.team_id || !form.key_id || !form.bundle_id || !form.key_pem) {
+      setMsg({ type: 'error', text: 'Tous les champs sont obligatoires, y compris la clé .p8.' });
+      return;
+    }
+    setSaving(true); setMsg(null);
+    try {
+      await apiFetch('/admin/apns', { method: 'POST', body: { ...form } });
+      setMsg({ type: 'success', text: 'Configuration APNS enregistrée et rechargée.' });
+      await load();
+    } catch (e) {
+      setMsg({ type: 'error', text: e.message || 'Erreur enregistrement' });
+    } finally { setSaving(false); }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm('Supprimer la configuration APNS ? Les notifications iOS seront désactivées.')) return;
+    setMsg(null);
+    try {
+      await apiFetch('/admin/apns', { method: 'DELETE' });
+      setStatus({ configured: false });
+      setForm(EMPTY_APNS);
+      setMsg({ type: 'success', text: 'Configuration APNS supprimée.' });
+    } catch (e) {
+      setMsg({ type: 'error', text: e.message || 'Erreur suppression' });
+    }
+  }
+
+  if (loading) return <div style={{ padding: 20, color: '#6b7280' }}>Chargement...</div>;
+
+  return (
+    <div className="card" style={{ maxWidth: 600 }}>
+      <h3 style={{ marginTop: 0 }}>Configuration APNS (iOS)</h3>
+      <ConfigStatus configured={status?.configured} label="APNS (iOS)" updatedAt={status?.updated_at} />
+      <MsgBanner msg={msg} />
+
+      <form onSubmit={handleSave}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 12px', marginBottom: 14 }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#6b7280' }}>Team ID *</label>
+            <input className="input" type="text" placeholder="ex : 52P2R277KX"
+              value={form.team_id} onChange={e => setForm(f => ({ ...f, team_id: e.target.value }))} />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#6b7280' }}>Key ID *</label>
+            <input className="input" type="text" placeholder="ex : Y7SDPM4V35"
+              value={form.key_id} onChange={e => setForm(f => ({ ...f, key_id: e.target.value }))} />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#6b7280' }}>Bundle ID *</label>
+          <input className="input" type="text" placeholder="ex : com.retorik.XamDje"
+            value={form.bundle_id} onChange={e => setForm(f => ({ ...f, bundle_id: e.target.value }))} />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: '#6b7280', fontWeight: 600 }}>Environnement</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { value: 'sandbox',    label: 'Sandbox (dev)',                      desc: 'Envoie uniquement vers api.sandbox.push.apple.com' },
+              { value: 'production', label: 'Production',                          desc: 'Envoie uniquement vers api.push.apple.com' },
+              { value: 'both',       label: 'Les deux (Sandbox + Production)',      desc: 'La clé p8 est valide dans les deux environnements — le serveur choisit selon l\'app enregistrée' },
+            ].map(opt => (
+              <label key={opt.value} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '8px 10px', borderRadius: 6, border: `1px solid ${form.apns_env === opt.value ? '#2563eb' : '#e5e7eb'}`, background: form.apns_env === opt.value ? '#eff6ff' : 'white' }}>
+                <input type="radio" name="apns_env" value={opt.value}
+                  checked={form.apns_env === opt.value}
+                  onChange={() => setForm(f => ({ ...f, apns_env: opt.value }))}
+                  style={{ marginTop: 2, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: 13 }}>{opt.label}</div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{opt.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#6b7280' }}>
+            Clé .p8{status?.configured ? ' (laisser vide pour conserver l\'actuelle)' : ' *'}
+          </label>
+          <textarea className="input" rows={8}
+            placeholder="-----BEGIN PRIVATE KEY-----&#10;..."
+            value={form.key_pem} onChange={e => setForm(f => ({ ...f, key_pem: e.target.value }))}
+            style={{ fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }} />
+          <div style={{ marginTop: 6 }}>
+            <input ref={fileRef} type="file" accept=".p8" style={{ display: 'none' }} onChange={handleFile} />
+            <button type="button" className="btn secondary" onClick={() => fileRef.current?.click()}>
+              Choisir un fichier .p8
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button type="submit" className="btn primary" disabled={saving}>
+            {saving ? 'Enregistrement...' : 'Enregistrer'}
+          </button>
+          {status?.configured && (
+            <button type="button" className="btn danger" onClick={handleDelete}>
+              Supprimer la configuration
+            </button>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------
+ *  Android FCM
+ * ---------------------------------------------------------------- */
+function FcmSection() {
+  const [status, setStatus]   = useState(null);
+  const [saJson, setSaJson]   = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
+  const [msg, setMsg]         = useState(null);
+  const fileRef               = useRef();
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true); setMsg(null);
+    try { setStatus(await apiFetch('/admin/fcm')); }
+    catch (e) { setMsg({ type: 'error', text: e.message || 'Erreur chargement' }); }
+    finally { setLoading(false); }
+  }
+
+  function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setSaJson(ev.target.result);
+    reader.readAsText(file);
+  }
+
+  async function handleSave(e) {
+    e.preventDefault();
+    if (!saJson.trim()) {
+      setMsg({ type: 'error', text: 'Le fichier de compte de service est obligatoire.' });
+      return;
+    }
+    try { JSON.parse(saJson); }
+    catch { setMsg({ type: 'error', text: 'JSON invalide. Vérifiez le fichier.' }); return; }
+
+    setSaving(true); setMsg(null);
+    try {
+      const data = await apiFetch('/admin/fcm', { method: 'POST', body: { service_account_json: saJson } });
+      setMsg({ type: 'success', text: `FCM configuré et rechargé. Projet : ${data.project_id}` });
+      setSaJson('');
+      await load();
+    } catch (e) {
+      setMsg({ type: 'error', text: e?.data?.error || e.message || 'Erreur enregistrement' });
+    } finally { setSaving(false); }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm('Supprimer la configuration FCM ? Les notifications Android seront désactivées.')) return;
+    setMsg(null);
+    try {
+      await apiFetch('/admin/fcm', { method: 'DELETE' });
+      setStatus({ configured: false, ready: false });
+      setSaJson('');
+      setMsg({ type: 'success', text: 'Configuration FCM supprimée.' });
+    } catch (e) {
+      setMsg({ type: 'error', text: e.message || 'Erreur suppression' });
+    }
+  }
+
+  if (loading) return <div style={{ padding: 20, color: '#6b7280' }}>Chargement...</div>;
+
+  return (
+    <div className="card" style={{ maxWidth: 600 }}>
+      <h3 style={{ marginTop: 0 }}>Configuration FCM (Android)</h3>
+      <ConfigStatus configured={status?.configured} label="FCM (Android)" updatedAt={status?.updated_at} />
+
+      {status?.configured && (
+        <div style={{ marginBottom: 20, padding: '12px 16px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e5e7eb' }}>
+          <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div><span style={{ color: '#6b7280', marginRight: 8 }}>Projet :</span><b>{status.project_id}</b></div>
+            <div><span style={{ color: '#6b7280', marginRight: 8 }}>Compte :</span><code style={{ fontSize: 12 }}>{status.client_email}</code></div>
+            <div>
+              <span style={{ color: '#6b7280', marginRight: 8 }}>Statut runtime :</span>
+              {status.ready
+                ? <span style={{ color: '#22c55e', fontWeight: 600 }}>Actif</span>
+                : <span style={{ color: '#ef4444', fontWeight: 600 }}>Erreur d'initialisation</span>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <MsgBanner msg={msg} />
+
+      <form onSubmit={handleSave}>
+        <div style={{ marginBottom: 8 }}>
+          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#6b7280' }}>
+            Fichier Service Account JSON (Firebase){status?.configured ? ' — nouveau fichier pour remplacer' : ' *'}
+          </label>
+          <div style={{ marginBottom: 8 }}>
+            <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleFile} />
+            <button type="button" className="btn secondary" onClick={() => fileRef.current?.click()}>
+              Choisir le fichier JSON
+            </button>
+            {saJson && <span style={{ marginLeft: 10, fontSize: 13, color: '#22c55e' }}>✓ Fichier chargé</span>}
+          </div>
+          <textarea className="input" rows={10}
+            placeholder={'{\n  "type": "service_account",\n  "project_id": "...",\n  ...\n}'}
+            value={saJson} onChange={e => setSaJson(e.target.value)}
+            style={{ fontFamily: 'monospace', fontSize: 11, resize: 'vertical' }} />
+          <div style={{ marginTop: 6, fontSize: 12, color: '#6b7280' }}>
+            Console Firebase → Paramètres → Comptes de service → Générer une nouvelle clé privée
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 16 }}>
+          <button type="submit" className="btn primary" disabled={saving || !saJson.trim()}>
+            {saving ? 'Enregistrement...' : 'Enregistrer'}
+          </button>
+          {status?.configured && (
+            <button type="button" className="btn danger" onClick={handleDelete}>
+              Supprimer la configuration
+            </button>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function SmtpSection() {
+  const EMPTY = { host: '', port: 587, secure: false, user_login: '', pass: '', from_name: '', from_email: '', reply_to: '' };
+
+  const [form, setForm]     = useState(EMPTY);
+  const [ready, setReady]   = useState(false);
+  const [configured, setConfigured] = useState(false);
+  const [err, setErr]       = useState('');
+  const [msg, setMsg]       = useState('');
+  const [testing, setTesting] = useState(false);
+  const [testTo, setTestTo] = useState('');
+  const [showPass, setShowPass] = useState(false);
+
+  async function load() {
+    setErr('');
+    try {
+      const data = await apiFetch('/admin/smtp');
+      setReady(data?.ready || false);
+      setConfigured(data?.configured || false);
+      if (data?.configured) {
+        setForm({
+          host:       data.host       || '',
+          port:       data.port       || 587,
+          secure:     data.secure     || false,
+          user_login: data.user_login || '',
+          pass:       '',  // jamais renvoyé par l'API
+          from_name:  data.from_name  || '',
+          from_email: data.from_email || '',
+          reply_to:   data.reply_to   || '',
+        });
+      }
+    } catch (e) {
+      setErr(e?.data?.error || e.message);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function save(e) {
+    e.preventDefault();
+    setErr(''); setMsg('');
+    try {
+      await apiFetch('/admin/smtp', {
+        method: 'POST',
+        body: {
+          ...form,
+          port:   Number(form.port),
+          secure: Boolean(form.secure),
+          pass:   form.pass || undefined,
+        },
+      });
+      setMsg('Configuration SMTP enregistrée.');
+      await load();
+    } catch (e) {
+      setErr(e?.data?.error || e.message);
+    }
+  }
+
+  async function del() {
+    if (!confirm('Supprimer la configuration SMTP ?')) return;
+    setErr(''); setMsg('');
+    try {
+      await apiFetch('/admin/smtp', { method: 'DELETE' });
+      setForm(EMPTY);
+      setConfigured(false);
+      setReady(false);
+      setMsg('Configuration supprimée.');
+    } catch (e) {
+      setErr(e?.data?.error || e.message);
+    }
+  }
+
+  async function sendTest() {
+    if (!testTo) return;
+    setTesting(true); setErr(''); setMsg('');
+    try {
+      await apiFetch('/admin/smtp/test', { method: 'POST', body: { to: testTo } });
+      setMsg(`Email de test envoyé à ${testTo}.`);
+    } catch (e) {
+      const detail = e?.data?.detail;
+      const code   = e?.data?.error || e.message;
+      const LABELS = {
+        smtp_not_configured:     'SMTP non configuré.',
+        smtp_connection_refused: 'Connexion refusée.',
+        smtp_host_not_found:     'Hôte SMTP introuvable.',
+        smtp_timeout:            'Délai de connexion dépassé.',
+        smtp_auth_failed:        'Authentification SMTP refusée.',
+        smtp_tls_error:          'Erreur TLS/certificat.',
+        smtp_send_failed:        'Échec d\'envoi.',
+      };
+      setErr((LABELS[code] || code) + (detail ? ` — ${detail}` : ''));
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ maxWidth: 620 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h3 style={{ margin: 0 }}>Configuration SMTP</h3>
+        <span style={{
+          padding: '2px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+          background: ready ? '#dcfce7' : configured ? '#fee2e2' : '#f3f4f6',
+          color:      ready ? '#15803d' : configured ? '#b91c1c' : '#6b7280',
+          border:     `1px solid ${ready ? '#86efac' : configured ? '#fca5a5' : '#d1d5db'}`,
+        }}>
+          {ready ? 'Actif' : configured ? 'Erreur' : 'Non configuré'}
+        </span>
+      </div>
+
+      {err ? <div style={{ color: '#b91c1c', marginBottom: 12 }}>{err}</div> : null}
+      {msg ? <div style={{ color: '#15803d', marginBottom: 12 }}>{msg}</div> : null}
+
+      <form onSubmit={save}>
+        {/* Serveur */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: '10px 8px', marginBottom: 12 }}>
+          <div>
+            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Serveur SMTP *</label>
+            <input className="input" value={form.host} onChange={e => set('host', e.target.value)} placeholder="smtp.example.com" required />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Port *</label>
+            <input className="input" type="number" value={form.port} onChange={e => set('port', e.target.value)} placeholder="587" required />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={Boolean(form.secure)} onChange={e => set('secure', e.target.checked)} />
+            TLS implicite (port 465) — décoché = STARTTLS (port 587)
+          </label>
+        </div>
+
+        {/* Auth */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 8px', marginBottom: 12 }}>
+          <div>
+            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Login SMTP</label>
+            <input className="input" value={form.user_login} onChange={e => set('user_login', e.target.value)} placeholder="user@example.com" autoComplete="username" />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>
+              Mot de passe {configured && <span style={{ color: '#9ca3af' }}>(laisser vide pour conserver)</span>}
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                className="input"
+                type={showPass ? 'text' : 'password'}
+                value={form.pass}
+                onChange={e => set('pass', e.target.value)}
+                placeholder={configured ? '••••••••' : ''}
+                autoComplete="new-password"
+                style={{ paddingRight: 36 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass(s => !s)}
+                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 14 }}
+              >
+                {showPass ? '🙈' : '👁'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Expéditeur */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 8px', marginBottom: 12 }}>
+          <div>
+            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Nom expéditeur</label>
+            <input className="input" value={form.from_name} onChange={e => set('from_name', e.target.value)} placeholder="XamIoT" />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Email expéditeur *</label>
+            <input className="input" type="email" value={form.from_email} onChange={e => set('from_email', e.target.value)} placeholder="no-reply@example.com" required />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Reply-To</label>
+          <input className="input" type="email" value={form.reply_to} onChange={e => set('reply_to', e.target.value)} placeholder="contact@example.com (optionnel)" />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" type="submit">Enregistrer</button>
+          {configured && (
+            <button className="btn secondary" type="button" style={{ color: '#b91c1c' }} onClick={del}>
+              Supprimer
+            </button>
+          )}
+        </div>
+      </form>
+
+      {configured && (
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #f3f4f6' }}>
+          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8 }}>Envoyer un email de test</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              className="input"
+              type="email"
+              style={{ flex: 1 }}
+              value={testTo}
+              onChange={e => setTestTo(e.target.value)}
+              placeholder="destinataire@example.com"
+            />
+            <button className="btn" onClick={sendTest} disabled={testing || !testTo}>
+              {testing ? 'Envoi…' : 'Tester'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const LOG_LABELS = {
+  mqtt_raw:  { label: 'Logs MQTT bruts',  hasCount: true },
+  alert_log: { label: 'Alertes',          hasCount: true },
+};
+
+function RetentionSection() {
+  const [rows, setRows]   = useState([]);
+  const [editing, setEditing] = useState({});
+  const [err, setErr]     = useState('');
+  const [msg, setMsg]     = useState('');
+
+  async function load() {
+    setErr('');
+    try {
+      const data = await apiFetch('/admin/retention');
+      setRows(data || []);
+    } catch (e) {
+      setErr(e?.data?.error || e.message);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function save(logType) {
+    const e = editing[logType] || {};
+    const days  = Number(e.days);
+    const count = e.count !== '' && e.count != null ? Number(e.count) : null;
+    if (!days || days < 1) return;
+    setErr(''); setMsg('');
+    try {
+      await apiFetch(`/admin/retention/${logType}`, {
+        method: 'PUT',
+        body: { retain_days: days, retain_count: count },
+      });
+      setMsg(`Rétention mise à jour.`);
+      setEditing(prev => ({ ...prev, [logType]: undefined }));
+      await load();
+    } catch (e) {
+      setErr(e?.data?.error || e.message);
+    }
+  }
+
+  function startEdit(r) {
+    setEditing(prev => ({
+      ...prev,
+      [r.log_type]: { days: r.retain_days, count: r.retain_count ?? '' },
+    }));
+  }
+
+  function cancelEdit(logType) {
+    setEditing(prev => ({ ...prev, [logType]: undefined }));
+  }
+
+  return (
+    <div className="card" style={{ maxWidth: 560 }}>
+      <h3 style={{ marginTop: 0 }}>Rétention des logs</h3>
+      <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
+        Les enregistrements plus anciens que la durée configurée sont supprimés automatiquement chaque heure.
+        Vous pouvez aussi limiter le nombre maximum de logs conservés par device (logs MQTT et alertes).
+      </p>
+
+      {err ? <div style={{ color: '#b91c1c', marginBottom: 10 }}>{err}</div> : null}
+      {msg ? <div style={{ color: '#15803d', marginBottom: 10 }}>{msg}</div> : null}
+
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: 'left', fontSize: 12, color: '#6b7280', padding: '6px 0', fontWeight: 600 }}>Type de log</th>
+            <th style={{ textAlign: 'center', fontSize: 12, color: '#6b7280', padding: '6px 0', fontWeight: 600, width: 110 }}>Durée (jours)</th>
+            <th style={{ textAlign: 'center', fontSize: 12, color: '#6b7280', padding: '6px 0', fontWeight: 600, width: 120 }}>Max / device</th>
+            <th style={{ width: 90 }}></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => {
+            const meta = LOG_LABELS[r.log_type] || { label: r.log_type, hasCount: false };
+            const ed   = editing[r.log_type];
+            return (
+              <tr key={r.log_type} style={{ borderTop: '1px solid #f3f4f6' }}>
+                <td style={{ padding: '10px 0', fontSize: 13 }}>{meta.label}</td>
+
+                <td style={{ padding: '10px 0', textAlign: 'center' }}>
+                  {ed !== undefined ? (
+                    <input
+                      className="input"
+                      type="number"
+                      min={1}
+                      style={{ width: 80, textAlign: 'center', padding: '4px 6px', fontSize: 13 }}
+                      value={ed.days}
+                      onChange={ev => setEditing(p => ({ ...p, [r.log_type]: { ...ed, days: ev.target.value } }))}
+                    />
+                  ) : (
+                    <strong>{r.retain_days} j</strong>
+                  )}
+                </td>
+
+                <td style={{ padding: '10px 0', textAlign: 'center' }}>
+                  {meta.hasCount ? (
+                    ed !== undefined ? (
+                      <input
+                        className="input"
+                        type="number"
+                        min={1}
+                        style={{ width: 80, textAlign: 'center', padding: '4px 6px', fontSize: 13 }}
+                        placeholder="illimité"
+                        value={ed.count}
+                        onChange={ev => setEditing(p => ({ ...p, [r.log_type]: { ...ed, count: ev.target.value } }))}
+                      />
+                    ) : (
+                      <span style={{ color: r.retain_count ? '#374151' : '#9ca3af' }}>
+                        {r.retain_count ? `${r.retain_count}` : '—'}
+                      </span>
+                    )
+                  ) : (
+                    <span style={{ color: '#d1d5db' }}>—</span>
+                  )}
+                </td>
+
+                <td style={{ padding: '10px 0', textAlign: 'right' }}>
+                  {ed !== undefined ? (
+                    <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                      <button className="btn" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => save(r.log_type)}>OK</button>
+                      <button className="btn secondary" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => cancelEdit(r.log_type)}>✕</button>
+                    </div>
+                  ) : (
+                    <button className="btn secondary" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => startEdit(r)}>
+                      Modifier
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+          {!rows.length && (
+            <tr><td colSpan={4} style={{ color: '#6b7280', fontSize: 13, padding: '10px 0' }}>Aucune configuration.</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const LIMITER_LABELS = { global: 'Global', auth: 'Auth', poll: 'Polling', portal_login: 'Portail login', contact: 'Contact' };
+
+function RateLimitSection() {
+  const EMPTY = { global_max: 500, global_window_ms: 900000, auth_max: 20, poll_max: 2000, contact_max: 5, contact_window_ms: 3600000, portal_login_max: 10, portal_login_window_ms: 900000, ip_whitelist: '' };
+  const [form, setForm] = useState(EMPTY);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [err, setErr]  = useState('');
+  const [msg, setMsg]  = useState('');
+  const [logs, setLogs] = useState([]);
+  const [logsErr, setLogsErr] = useState('');
+
+  async function load() {
+    setErr('');
+    try {
+      const data = await apiFetch('/admin/rate-limit');
+      setForm({
+        global_max:             data.global_max             ?? 500,
+        global_window_ms:       data.global_window_ms       ?? 900000,
+        auth_max:               data.auth_max               ?? 20,
+        poll_max:               data.poll_max               ?? 2000,
+        contact_max:            data.contact_max            ?? 5,
+        contact_window_ms:      data.contact_window_ms      ?? 3600000,
+        portal_login_max:       data.portal_login_max       ?? 10,
+        portal_login_window_ms: data.portal_login_window_ms ?? 900000,
+        ip_whitelist:           data.ip_whitelist           ?? '',
+      });
+      setUpdatedAt(data.updated_at);
+    } catch (e) {
+      setErr(e?.data?.error || e.message);
+    }
+  }
+
+  async function loadLogs() {
+    setLogsErr('');
+    try {
+      const data = await apiFetch('/admin/rate-limit/logs');
+      setLogs(data || []);
+    } catch (e) {
+      setLogsErr(e?.data?.error || e.message);
+    }
+  }
+
+  useEffect(() => { load(); loadLogs(); }, []);
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function save(e) {
+    e.preventDefault();
+    setErr(''); setMsg('');
+    try {
+      await apiFetch('/admin/rate-limit', {
+        method: 'POST',
+        body: {
+          global_max:             Number(form.global_max),
+          global_window_ms:       Number(form.global_window_ms),
+          auth_max:               Number(form.auth_max),
+          poll_max:               Number(form.poll_max),
+          contact_max:            Number(form.contact_max),
+          contact_window_ms:      Number(form.contact_window_ms),
+          portal_login_max:       Number(form.portal_login_max),
+          portal_login_window_ms: Number(form.portal_login_window_ms),
+          ip_whitelist:           form.ip_whitelist,
+        },
+      });
+      setMsg('Configuration rate limit enregistrée et appliquée immédiatement.');
+      await load();
+    } catch (e) {
+      setErr(e?.data?.error || e.message);
+    }
+  }
+
+  const windowMin = Math.round(form.global_window_ms / 60000);
+
+  return (
+    <div className="card" style={{ maxWidth: 520 }}>
+      <h3 style={{ marginTop: 0 }}>Rate limits</h3>
+      <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
+        Les modifications sont appliquées immédiatement sans redémarrage.
+        Les compteurs en cours sont réinitialisés à l'application.
+      </p>
+
+      {err ? <div style={{ color: '#b91c1c', marginBottom: 12 }}>{err}</div> : null}
+      {msg ? <div style={{ color: '#15803d', marginBottom: 12 }}>{msg}</div> : null}
+
+      <form onSubmit={save}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', fontSize: 12, color: '#6b7280', padding: '4px 0 8px', fontWeight: 600 }}>Limiteur</th>
+              <th style={{ textAlign: 'left', fontSize: 12, color: '#6b7280', padding: '4px 0 8px', fontWeight: 600 }}>Description</th>
+              <th style={{ textAlign: 'right', fontSize: 12, color: '#6b7280', padding: '4px 0 8px', fontWeight: 600, width: 100 }}>Requêtes max</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              { key: 'global_max',        label: 'Global',         desc: 'Toutes les routes (par IP)' },
+              { key: 'auth_max',          label: 'Auth',           desc: '/auth/* et /admin/login' },
+              { key: 'portal_login_max',  label: 'Portail login',  desc: 'Login portail client (/auth/login)' },
+              { key: 'poll_max',          label: 'Polling',        desc: 'Status bar (status, apns, fcm, smtp)' },
+              { key: 'contact_max',       label: 'Contact',        desc: 'Formulaire de contact public (/public/contact)' },
+            ].map(({ key, label, desc }) => (
+              <tr key={key} style={{ borderTop: '1px solid #f3f4f6' }}>
+                <td style={{ padding: '10px 0', fontSize: 13, fontWeight: 500, width: 80 }}>{label}</td>
+                <td style={{ padding: '10px 0', fontSize: 12, color: '#6b7280' }}>{desc}</td>
+                <td style={{ padding: '10px 0', textAlign: 'right' }}>
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    style={{ width: 90, textAlign: 'center', padding: '4px 6px', fontSize: 13 }}
+                    value={form[key]}
+                    onChange={e => set(key, e.target.value)}
+                  />
+                </td>
+              </tr>
+            ))}
+            <tr style={{ borderTop: '1px solid #f3f4f6' }}>
+              <td style={{ padding: '10px 0', fontSize: 13, fontWeight: 500 }}>Fenêtre contact</td>
+              <td style={{ padding: '10px 0', fontSize: 12, color: '#6b7280' }}>Durée de la fenêtre du formulaire de contact (indépendante)</td>
+              <td style={{ padding: '10px 0', textAlign: 'right' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    style={{ width: 70, textAlign: 'center', padding: '4px 6px', fontSize: 13 }}
+                    value={Math.round(form.contact_window_ms / 60000)}
+                    onChange={e => set('contact_window_ms', Number(e.target.value) * 60000)}
+                  />
+                  <span style={{ fontSize: 12, color: '#6b7280' }}>min</span>
+                </div>
+              </td>
+            </tr>
+            <tr style={{ borderTop: '1px solid #f3f4f6' }}>
+              <td style={{ padding: '10px 0', fontSize: 13, fontWeight: 500 }}>Fenêtre portail login</td>
+              <td style={{ padding: '10px 0', fontSize: 12, color: '#6b7280' }}>Durée de la fenêtre du login portail client (indépendante)</td>
+              <td style={{ padding: '10px 0', textAlign: 'right' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    style={{ width: 70, textAlign: 'center', padding: '4px 6px', fontSize: 13 }}
+                    value={Math.round(form.portal_login_window_ms / 60000)}
+                    onChange={e => set('portal_login_window_ms', Number(e.target.value) * 60000)}
+                  />
+                  <span style={{ fontSize: 12, color: '#6b7280' }}>min</span>
+                </div>
+              </td>
+            </tr>
+            <tr style={{ borderTop: '1px solid #f3f4f6' }}>
+              <td style={{ padding: '10px 0', fontSize: 13, fontWeight: 500 }}>Fenêtre globale</td>
+              <td style={{ padding: '10px 0', fontSize: 12, color: '#6b7280' }}>Durée de la fenêtre (s'applique à Global, Auth, Polling)</td>
+              <td style={{ padding: '10px 0', textAlign: 'right' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    style={{ width: 70, textAlign: 'center', padding: '4px 6px', fontSize: 13 }}
+                    value={windowMin}
+                    onChange={e => set('global_window_ms', Number(e.target.value) * 60000)}
+                  />
+                  <span style={{ fontSize: 12, color: '#6b7280' }}>min</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', marginBottom: 4, fontSize: 13, fontWeight: 500 }}>
+            Liste blanche IP (non soumises au rate limit)
+          </label>
+          <p style={{ margin: '0 0 6px', fontSize: 12, color: '#6b7280' }}>
+            Une IP par ligne ou séparées par des virgules. Ces IPs contournent tous les limiteurs.
+          </p>
+          <textarea
+            className="input"
+            rows={4}
+            placeholder={'192.168.1.1\n10.0.0.0'}
+            style={{ fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+            value={(form.ip_whitelist || '').replace(/,/g, '\n')}
+            onChange={e => set('ip_whitelist', e.target.value.replace(/\n/g, ','))}
+          />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button className="btn" type="submit">Appliquer</button>
+          {updatedAt && (
+            <span style={{ fontSize: 11, color: '#9ca3af' }}>
+              Dernière modif : {new Date(updatedAt).toLocaleString('fr-FR')}
+            </span>
+          )}
+        </div>
+      </form>
+
+      {/* Dernières connexions bloquées */}
+      <div style={{ marginTop: 28, paddingTop: 20, borderTop: '2px solid #e5e7eb' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
+            Connexions bloquées — fenêtre de {windowMin} min
+          </h4>
+          <button
+            className="btn secondary"
+            style={{ padding: '4px 12px', fontSize: 12 }}
+            onClick={loadLogs}
+          >
+            Actualiser
+          </button>
+        </div>
+
+        {logsErr && <div style={{ color: '#b91c1c', fontSize: 12, marginBottom: 8 }}>{logsErr}</div>}
+
+        {logs.length === 0 ? (
+          <div style={{ fontSize: 13, color: '#9ca3af', padding: '10px 0' }}>
+            Aucune connexion bloquée dans la fenêtre de temps courante.
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#f9fafb' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Date</th>
+                  <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Heure</th>
+                  <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Limiteur</th>
+                  <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>IP</th>
+                  <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Route</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((log, i) => {
+                  const d = new Date(log.ts);
+                  return (
+                    <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '7px 10px', color: '#374151' }}>{d.toLocaleDateString('fr-FR')}</td>
+                      <td style={{ padding: '7px 10px', color: '#374151', fontFamily: 'monospace' }}>{d.toLocaleTimeString('fr-FR')}</td>
+                      <td style={{ padding: '7px 10px' }}>
+                        <span style={{
+                          display: 'inline-block', padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+                          background: log.limiter === 'auth' ? '#fee2e2' : log.limiter === 'poll' ? '#fef9c3' : '#ede9fe',
+                          color:      log.limiter === 'auth' ? '#b91c1c' : log.limiter === 'poll' ? '#92400e' : '#6d28d9',
+                          border:     `1px solid ${log.limiter === 'auth' ? '#fca5a5' : log.limiter === 'poll' ? '#fde68a' : '#c4b5fd'}`,
+                        }}>
+                          {LIMITER_LABELS[log.limiter] || log.limiter}
+                        </span>
+                      </td>
+                      <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 12, color: '#374151' }}>{log.ip}</td>
+                      <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 12, color: '#6b7280' }}>{log.path || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------
+ *  PortalSection — Paramètres du portail client
+ * ---------------------------------------------------------------- */
+
+function PortalSection() {
+  const [form, setForm] = useState({ portal_refresh_interval_sec: '60', portal_idle_timeout_sec: '60', portal_auto_logout_min: '30' });
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setErr('');
+    try {
+      const data = await apiFetch('/admin/app-config');
+      const cfgMap = {};
+      (data || []).forEach(r => { cfgMap[r.key] = r.value; });
+      setForm({
+        portal_refresh_interval_sec: cfgMap.portal_refresh_interval_sec || '60',
+        portal_idle_timeout_sec:     cfgMap.portal_idle_timeout_sec     || '60',
+        portal_auto_logout_min:      cfgMap.portal_auto_logout_min      || '30',
+      });
+    } catch (e) {
+      setErr(e?.data?.error || e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function save(e) {
+    e.preventDefault();
+    setErr(''); setMsg('');
+    try {
+      await Promise.all(
+        Object.entries(form).map(([key, value]) =>
+          apiFetch(`/admin/app-config/${key}`, { method: 'PUT', body: { value: String(value) } })
+        )
+      );
+      setMsg('Paramètres du portail enregistrés.');
+    } catch (e) {
+      setErr(e?.data?.error || e.message);
+    }
+  }
+
+  if (loading) return <div className="card" style={{ maxWidth: 520 }}>Chargement…</div>;
+
+  return (
+    <div className="card" style={{ maxWidth: 520 }}>
+      <h3 style={{ marginTop: 0 }}>Portail client</h3>
+      <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
+        Paramètres de comportement du portail client (rafraîchissement, déconnexion automatique).
+        Les changements prennent effet au prochain chargement de page par l'utilisateur.
+      </p>
+
+      {err ? <div style={{ color: '#b91c1c', marginBottom: 12 }}>{err}</div> : null}
+      {msg ? <div style={{ color: '#15803d', marginBottom: 12 }}>{msg}</div> : null}
+
+      <form onSubmit={save}>
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', marginBottom: 4, fontSize: 13, fontWeight: 500 }}>
+            Rafraîchissement automatique
+          </label>
+          <p style={{ margin: '0 0 6px', fontSize: 12, color: '#6b7280' }}>
+            Intervalle entre chaque mise à jour automatique des données (graphiques, mesures).
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              className="input"
+              type="number"
+              min={10}
+              max={600}
+              style={{ width: 90, textAlign: 'center', padding: '6px 8px', fontSize: 13 }}
+              value={form.portal_refresh_interval_sec}
+              onChange={e => setForm(f => ({ ...f, portal_refresh_interval_sec: e.target.value }))}
+            />
+            <span style={{ fontSize: 13, color: '#6b7280' }}>secondes</span>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', marginBottom: 4, fontSize: 13, fontWeight: 500 }}>
+            Pause après inactivité
+          </label>
+          <p style={{ margin: '0 0 6px', fontSize: 12, color: '#6b7280' }}>
+            Délai d'inactivité (pas de souris, clavier, scroll) avant de suspendre le rafraîchissement automatique.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              className="input"
+              type="number"
+              min={10}
+              max={600}
+              style={{ width: 90, textAlign: 'center', padding: '6px 8px', fontSize: 13 }}
+              value={form.portal_idle_timeout_sec}
+              onChange={e => setForm(f => ({ ...f, portal_idle_timeout_sec: e.target.value }))}
+            />
+            <span style={{ fontSize: 13, color: '#6b7280' }}>secondes</span>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'block', marginBottom: 4, fontSize: 13, fontWeight: 500 }}>
+            Déconnexion automatique
+          </label>
+          <p style={{ margin: '0 0 6px', fontSize: 12, color: '#6b7280' }}>
+            Délai d'inactivité après lequel l'utilisateur est déconnecté automatiquement.
+            Mettre 0 pour désactiver.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              max={1440}
+              style={{ width: 90, textAlign: 'center', padding: '6px 8px', fontSize: 13 }}
+              value={form.portal_auto_logout_min}
+              onChange={e => setForm(f => ({ ...f, portal_auto_logout_min: e.target.value }))}
+            />
+            <span style={{ fontSize: 13, color: '#6b7280' }}>minutes</span>
+          </div>
+        </div>
+
+        <button className="btn" type="submit">Enregistrer</button>
+      </form>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------
+ *  TranslationSection — Configuration DeepL
+ * ---------------------------------------------------------------- */
+function TranslationSection() {
+  const [apiKey, setApiKey]         = useState('');
+  const [saved, setSaved]           = useState(false);
+  const [testing, setTesting]       = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const [msg, setMsg]               = useState(null);
+
+  async function saveKey(e) {
+    e.preventDefault();
+    setMsg(null); setTestResult(null);
+    try {
+      await apiFetch('/admin/app-config/deepl_api_key', {
+        method: 'PUT',
+        body: { value: apiKey },
+      });
+      setMsg({ type: 'success', text: 'Clé DeepL enregistrée.' });
+      setApiKey('');
+      setSaved(true);
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.data?.error || err.message });
+    }
+  }
+
+  async function testKey() {
+    setTesting(true); setTestResult(null); setMsg(null);
+    try {
+      const data = await apiFetch('/admin/app-config/deepl/test', { method: 'POST' });
+      if (data.ok) {
+        setTestResult({ ok: true, text: `Test OK — traduction : "${data.sample}"` });
+      } else {
+        setTestResult({ ok: false, text: data.message || data.error || 'Erreur inconnue' });
+      }
+    } catch (err) {
+      setTestResult({ ok: false, text: err?.data?.error || err.message });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: 560 }}>
+      <h3 style={{ marginTop: 0 }}>Traduction automatique — DeepL</h3>
+      <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 20 }}>
+        La clé DeepL Free API permet de traduire automatiquement les pages et produits
+        vers l'anglais et l'espagnol. Inscription gratuite sur{' '}
+        <a href="https://www.deepl.com/pro-api" target="_blank" rel="noreferrer" style={{ color: '#2563eb' }}>
+          deepl.com/pro-api
+        </a>{' '}
+        — 500 000 caractères/mois inclus sans CB.
+      </p>
+
+      <MsgBanner msg={msg} />
+
+      {testResult && (
+        <div style={{
+          padding: '10px 14px', marginBottom: 16, borderRadius: 8,
+          background: testResult.ok ? '#dcfce7' : '#fee2e2',
+          color:      testResult.ok ? '#15803d' : '#b91c1c',
+          fontWeight: 500, fontSize: 14,
+        }}>
+          {testResult.text}
+        </div>
+      )}
+
+      <form onSubmit={saveKey}>
+        <label style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: 14 }}>
+          Clé API DeepL (format : <code>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx</code>)
+        </label>
+        <input
+          type="password"
+          value={apiKey}
+          onChange={e => setApiKey(e.target.value)}
+          placeholder="Coller la clé ici (valeur actuelle masquée)"
+          style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14, marginBottom: 12, boxSizing: 'border-box' }}
+        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="submit"
+            disabled={!apiKey.trim()}
+            style={{
+              background: apiKey.trim() ? '#2563eb' : '#93c5fd',
+              color: '#fff', border: 'none', borderRadius: 6,
+              padding: '8px 18px', fontSize: 14, cursor: apiKey.trim() ? 'pointer' : 'default',
+            }}
+          >
+            Enregistrer
+          </button>
+          <button
+            type="button"
+            onClick={testKey}
+            disabled={testing}
+            style={{
+              background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db',
+              borderRadius: 6, padding: '8px 18px', fontSize: 14, cursor: 'pointer',
+            }}
+          >
+            {testing ? 'Test en cours…' : 'Tester la connexion'}
+          </button>
+        </div>
+      </form>
+
+      {saved && (
+        <p style={{ marginTop: 16, fontSize: 13, color: '#6b7280' }}>
+          ✓ Une clé est actuellement configurée. Pour la remplacer, coller la nouvelle clé ci-dessus.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------
+ *  AppConfigSection — Configuration générale
+ * ---------------------------------------------------------------- */
+const EDITABLE_KEYS = [
+  { key: 'site_name',              label: 'Nom du site',                   type: 'text' },
+  { key: 'support_email',          label: 'Email de support',              type: 'email' },
+  { key: 'default_lang',           label: 'Langue par défaut',             type: 'select', options: ['fr', 'en', 'es'] },
+  { key: 'available_langs',        label: 'Langues disponibles (virgule)', type: 'text' },
+  { key: 'password_min_length',    label: 'Longueur min. mot de passe',    type: 'number' },
+  { key: 'password_require_upper', label: 'Exiger une majuscule',          type: 'select', options: ['true', 'false'] },
+  { key: 'password_require_digit', label: 'Exiger un chiffre',             type: 'select', options: ['true', 'false'] },
+];
+
+const MEDIA_BASE = 'https://apixam.holiceo.com';
+
+function MediaPickerModal({ onSelect, onClose }) {
+  const [media, setMedia]     = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr]         = useState('');
+
+  useEffect(() => {
+    apiFetch('/admin/cms/media')
+      .then(data => setMedia(Array.isArray(data) ? data : (data.items || data.media || [])))
+      .catch(e => setErr(e?.data?.error || e.message || 'Erreur chargement médiathèque'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        background: '#fff', borderRadius: 10, width: 720, maxWidth: '95vw',
+        maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 20px', borderBottom: '1px solid #e5e7eb',
+        }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Médiathèque</h3>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 20, color: '#6b7280', lineHeight: 1, padding: '0 4px',
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+          {loading && <div style={{ color: '#6b7280', fontSize: 14 }}>Chargement...</div>}
+          {err && <div style={{ color: '#b91c1c', fontSize: 14 }}>{err}</div>}
+          {!loading && !err && media.length === 0 && (
+            <div style={{ color: '#9ca3af', fontSize: 14 }}>Aucun fichier dans la médiathèque.</div>
+          )}
+          {!loading && !err && media.length > 0 && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+              gap: 12,
+            }}>
+              {media.map((item, i) => (
+                <button
+                  key={item.id || item.url || i}
+                  onClick={() => onSelect(item)}
+                  style={{
+                    border: '2px solid #e5e7eb', borderRadius: 8,
+                    padding: 6, background: '#f9fafb', cursor: 'pointer',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    transition: 'border-color 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = '#2563eb'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = '#e5e7eb'}
+                >
+                  <img
+                    src={item.url_path ? `${MEDIA_BASE}${item.url_path}` : item.url}
+                    alt={item.original_name || item.filename || ''}
+                    style={{ width: '100%', height: 80, objectFit: 'contain', borderRadius: 4 }}
+                    onError={e => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                  <div style={{
+                    display: 'none', width: '100%', height: 80,
+                    alignItems: 'center', justifyContent: 'center',
+                    fontSize: 28, color: '#d1d5db',
+                  }}>
+                    🖼
+                  </div>
+                  <div style={{
+                    fontSize: 11, color: '#6b7280', textAlign: 'center',
+                    wordBreak: 'break-all', maxWidth: '100%',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {item.original_name || item.filename || item.url_path?.split('/').pop() || ''}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LogoSection() {
+  const [logoUrl, setLogoUrl]         = useState('');
+  const [logoHeight, setLogoHeight]   = useState(40);
+  const [saving, setSaving]           = useState(false);
+  const [msg, setMsg]                 = useState(null);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
+
+  useEffect(() => { loadLogo(); }, []);
+
+  async function loadLogo() {
+    try {
+      const rows = await apiFetch('/admin/app-config');
+      const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+      setLogoUrl(map.logo_url || '');
+      setLogoHeight(map.logo_height ? parseInt(map.logo_height, 10) : 40);
+    } catch { /* ignore */ }
+  }
+
+  async function saveLogo() {
+    setSaving(true);
+    setMsg(null);
+    try {
+      await apiFetch('/admin/app-config/logo_url', { method: 'PUT', body: { value: logoUrl } });
+      await apiFetch('/admin/app-config/logo_height', { method: 'PUT', body: { value: String(logoHeight) } });
+      setMsg({ type: 'success', text: 'Logo enregistré.' });
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.data?.error || err.message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleMediaSelect(item) {
+    const url = item.url_path ? `${MEDIA_BASE}${item.url_path}` : item.url;
+    setLogoUrl(url || '');
+    setShowMediaPicker(false);
+  }
+
+  return (
+    <div style={{ maxWidth: 640, marginBottom: 40 }}>
+      {showMediaPicker && (
+        <MediaPickerModal
+          onSelect={handleMediaSelect}
+          onClose={() => setShowMediaPicker(false)}
+        />
+      )}
+
+      <h3 style={{ marginTop: 0 }}>Logo du site</h3>
+      <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 20 }}>
+        Sélectionnez une image depuis la médiathèque ou collez une URL directement.
+        Laissez vide pour afficher le texte "XamIoT" dans l'en-tête.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 4 }}>
+            URL du logo
+          </label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="text"
+              value={logoUrl}
+              onChange={e => setLogoUrl(e.target.value)}
+              placeholder="https://..."
+              style={{ flex: 1, boxSizing: 'border-box', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14 }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowMediaPicker(true)}
+              style={{
+                background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db',
+                borderRadius: 6, padding: '6px 12px', fontSize: 13, cursor: 'pointer',
+                whiteSpace: 'nowrap', fontWeight: 500,
+              }}
+            >
+              Choisir depuis la médiathèque
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 4 }}>
+            Hauteur (px)
+          </label>
+          <input
+            type="number"
+            value={logoHeight}
+            min={10}
+            max={200}
+            onChange={e => setLogoHeight(parseInt(e.target.value, 10) || 40)}
+            style={{ width: 100, padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14 }}
+          />
+        </div>
+
+        {logoUrl && (
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 8 }}>Aperçu</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', padding: '10px 16px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+              <img
+                src={logoUrl}
+                alt="Aperçu logo"
+                style={{ height: logoHeight, maxWidth: 300, objectFit: 'contain', display: 'block' }}
+                onError={e => { e.currentTarget.style.display = 'none'; }}
+              />
+            </div>
+          </div>
+        )}
+
+        <MsgBanner msg={msg} />
+
+        <div>
+          <button
+            onClick={saveLogo}
+            disabled={saving}
+            style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 20px', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
+          >
+            {saving ? 'Enregistrement…' : 'Enregistrer le logo'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NavStoreSection() {
+  const KEYS = ['appstore_url', 'googleplay_url', 'nav_appstore_logo', 'nav_googleplay_logo'];
+  const [vals, setVals]     = useState({ appstore_url: '', googleplay_url: '', nav_appstore_logo: '', nav_googleplay_logo: '' });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg]       = useState(null);
+  const [picker, setPicker] = useState(null); // 'nav_appstore_logo' | 'nav_googleplay_logo' | null
+
+  useEffect(() => { loadVals(); }, []);
+
+  async function loadVals() {
+    try {
+      const rows = await apiFetch('/admin/app-config');
+      const map  = Object.fromEntries(rows.map(r => [r.key, r.value]));
+      setVals({
+        appstore_url:        map.appstore_url        || '',
+        googleplay_url:      map.googleplay_url      || '',
+        nav_appstore_logo:   map.nav_appstore_logo   || '',
+        nav_googleplay_logo: map.nav_googleplay_logo || '',
+      });
+    } catch { /* ignore */ }
+  }
+
+  async function save() {
+    setSaving(true);
+    setMsg(null);
+    try {
+      await Promise.all(
+        KEYS.map(k => apiFetch(`/admin/app-config/${k}`, { method: 'PUT', body: { value: vals[k] || '' } }))
+      );
+      setMsg({ type: 'success', text: 'Liens App Store / Google Play enregistrés.' });
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.data?.error || err.message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleMediaSelect(item) {
+    const url = item.url_path ? `${MEDIA_BASE}${item.url_path}` : item.url;
+    setVals(v => ({ ...v, [picker]: url || '' }));
+    setPicker(null);
+  }
+
+  return (
+    <div style={{ maxWidth: 640, marginBottom: 40 }}>
+      {picker && (
+        <MediaPickerModal
+          onSelect={handleMediaSelect}
+          onClose={() => setPicker(null)}
+        />
+      )}
+
+      <h3 style={{ marginTop: 0 }}>Liens App Store &amp; Google Play (header)</h3>
+      <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 20 }}>
+        URLs de destination des boutons dans le coin supérieur droit du site.
+        Ajoutez un logo depuis la médiathèque pour remplacer le texte par une image.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {[
+          { key: 'appstore_url', logoKey: 'nav_appstore_logo', label: 'App Store', placeholder: 'https://apps.apple.com/fr/app/...' },
+          { key: 'googleplay_url', logoKey: 'nav_googleplay_logo', label: 'Google Play', placeholder: 'https://play.google.com/store/apps/...' },
+        ].map(({ key, logoKey, label, placeholder }) => (
+          <div key={key} style={{ padding: 16, border: '1px solid #e5e7eb', borderRadius: 8, background: '#fafafa' }}>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: '#111827' }}>{label}</div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 4 }}>URL de destination</label>
+                <input
+                  type="text"
+                  value={vals[key]}
+                  onChange={e => setVals(v => ({ ...v, [key]: e.target.value }))}
+                  placeholder={placeholder}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 4 }}>
+                  Logo (remplace le texte "{label}" si renseigné)
+                </label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    value={vals[logoKey]}
+                    onChange={e => setVals(v => ({ ...v, [logoKey]: e.target.value }))}
+                    placeholder="https://... ou laisser vide pour afficher le texte"
+                    style={{ flex: 1, padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPicker(logoKey)}
+                    style={{ background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    Médiathèque
+                  </button>
+                  {vals[logoKey] && (
+                    <button
+                      type="button"
+                      onClick={() => setVals(v => ({ ...v, [logoKey]: '' }))}
+                      style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 8px', fontSize: 12, cursor: 'pointer' }}
+                      title="Supprimer le logo"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                {vals[logoKey] && (
+                  <div style={{ marginTop: 8 }}>
+                    <img
+                      src={vals[logoKey]}
+                      alt={`Aperçu ${label}`}
+                      style={{ height: 32, maxWidth: 200, objectFit: 'contain', display: 'block', border: '1px solid #e5e7eb', borderRadius: 4, padding: 4, background: '#fff' }}
+                      onError={e => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <MsgBanner msg={msg} />
+
+        <div>
+          <button
+            onClick={save}
+            disabled={saving}
+            style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 20px', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
+          >
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AppConfigSection() {
+  const [config, setConfig]   = useState({});
+  const [editing, setEditing] = useState({});
+  const [saving, setSaving]   = useState({});
+  const [msgs, setMsgs]       = useState({});
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    try {
+      const rows = await apiFetch('/admin/app-config');
+      const map = Object.fromEntries(rows.map(r => [r.key, r]));
+      setConfig(map);
+    } catch { /* ignore */ }
+  }
+
+  function startEdit(key) {
+    setEditing(p => ({ ...p, [key]: config[key]?.value ?? '' }));
+  }
+
+  function cancelEdit(key) {
+    setEditing(p => { const n = { ...p }; delete n[key]; return n; });
+    setMsgs(p => { const n = { ...p }; delete n[key]; return n; });
+  }
+
+  async function save(key) {
+    setSaving(p => ({ ...p, [key]: true }));
+    setMsgs(p => ({ ...p, [key]: null }));
+    try {
+      const updated = await apiFetch(`/admin/app-config/${key}`, {
+        method: 'PUT',
+        body: { value: editing[key] },
+      });
+      setConfig(p => ({ ...p, [key]: updated }));
+      cancelEdit(key);
+      setMsgs(p => ({ ...p, [key]: { type: 'success', text: 'Enregistré.' } }));
+    } catch (err) {
+      setMsgs(p => ({ ...p, [key]: { type: 'error', text: err?.data?.error || err.message } }));
+    } finally {
+      setSaving(p => ({ ...p, [key]: false }));
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: 640 }}>
+      <LogoSection />
+      <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', marginBottom: 32 }} />
+      <NavStoreSection />
+      <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', marginBottom: 32 }} />
+      <h3 style={{ marginTop: 0 }}>Configuration générale</h3>
+      <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 20 }}>
+        Paramètres éditables sans redéploiement. Les URLs d'environnement (DEV/PROD)
+        sont gérées via les variables d'environnement du serveur.
+      </p>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+        <thead>
+          <tr>
+            {['Paramètre', 'Valeur actuelle', 'Action'].map(h => (
+              <th key={h} style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '2px solid #e5e7eb', color: '#374151' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {EDITABLE_KEYS.map(({ key, label, type, options }) => {
+            const row = config[key];
+            const isEditing = key in editing;
+            const msg = msgs[key];
+            return (
+              <tr key={key} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                <td style={{ padding: '10px 10px', fontWeight: 500, color: '#374151', verticalAlign: 'top' }}>
+                  {label}
+                  <div style={{ fontSize: 12, color: '#9ca3af', fontFamily: 'monospace', marginTop: 2 }}>{key}</div>
+                </td>
+                <td style={{ padding: '10px 10px', verticalAlign: 'top' }}>
+                  {isEditing ? (
+                    <>
+                      {type === 'select' ? (
+                        <select
+                          value={editing[key]}
+                          onChange={e => setEditing(p => ({ ...p, [key]: e.target.value }))}
+                          style={{ padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 14 }}
+                        >
+                          {options.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : (
+                        <input
+                          type={type}
+                          value={editing[key]}
+                          onChange={e => setEditing(p => ({ ...p, [key]: e.target.value }))}
+                          style={{ padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 14, width: '100%', boxSizing: 'border-box' }}
+                        />
+                      )}
+                      {msg && (
+                        <div style={{ fontSize: 12, color: msg.type === 'success' ? '#15803d' : '#b91c1c', marginTop: 4 }}>
+                          {msg.text}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span style={{ color: row?.value ? '#111827' : '#9ca3af' }}>
+                      {row?.value || '—'}
+                    </span>
+                  )}
+                </td>
+                <td style={{ padding: '10px 10px', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
+                  {isEditing ? (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={() => save(key)}
+                        disabled={saving[key]}
+                        style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 12px', fontSize: 13, cursor: 'pointer' }}
+                      >
+                        {saving[key] ? '…' : 'Sauver'}
+                      </button>
+                      <button
+                        onClick={() => cancelEdit(key)}
+                        style={{ background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, padding: '4px 10px', fontSize: 13, cursor: 'pointer' }}
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => startEdit(key)}
+                      style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '4px 12px', fontSize: 13, cursor: 'pointer', color: '#374151' }}
+                    >
+                      Modifier
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------
+ *  StripeSection — Configuration Stripe (dual mode test/live)
+ * ---------------------------------------------------------------- */
+function StripeSection() {
+  const [status, setStatus]         = useState(null);
+  const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState(false);
+  const [switching, setSwitching]   = useState(false);
+  const [msg, setMsg]               = useState(null);
+  // Clés test
+  const [testSK, setTestSK]           = useState('');
+  const [testWH, setTestWH]           = useState('');
+  // Clés live
+  const [liveSK, setLiveSK]           = useState('');
+  const [liveWH, setLiveWH]           = useState('');
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true); setMsg(null);
+    try {
+      const data = await apiFetch('/admin/stripe');
+      setStatus(data);
+    } catch (e) {
+      setMsg({ type: 'error', text: e?.data?.error || e.message || 'Erreur chargement' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveMode(mode) {
+    const sk  = mode === 'test' ? testSK  : liveSK;
+    const wh  = mode === 'test' ? testWH  : liveWH;
+    if (!sk.trim() && !wh.trim()) {
+      setMsg({ type: 'error', text: 'Renseignez au moins une clé à mettre à jour.' });
+      return;
+    }
+    setSaving(true); setMsg(null);
+    try {
+      const body = {};
+      if (sk.trim()) body[`${mode}_secret_key`]     = sk.trim();
+      if (wh.trim()) body[`${mode}_webhook_secret`] = wh.trim();
+      await apiFetch('/admin/stripe', { method: 'PUT', body });
+      if (mode === 'test') { setTestSK(''); setTestWH(''); }
+      else                 { setLiveSK(''); setLiveWH(''); }
+      await load();
+      setMsg({ type: 'success', text: `Clés ${mode === 'test' ? 'Test' : 'Production'} enregistrées.` });
+    } catch (e) {
+      setMsg({ type: 'error', text: e?.data?.error || e.message || 'Erreur de sauvegarde' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function switchMode(newMode) {
+    setSwitching(true); setMsg(null);
+    try {
+      await apiFetch('/admin/stripe', { method: 'PUT', body: { mode: newMode } });
+      await load();
+      setMsg({ type: 'success', text: `Mode Stripe basculé sur : ${newMode === 'test' ? 'Test (sandbox)' : 'Production (live)'}` });
+    } catch (e) {
+      setMsg({ type: 'error', text: e?.data?.error || e.message || 'Erreur de bascule' });
+    } finally {
+      setSwitching(false);
+    }
+  }
+
+  const activeMode = status?.active_mode || 'test';
+  const isLiveActive = activeMode === 'live';
+
+  function ModeCard({ mode, label, info, sk, setSk, wh, setWh }) {
+    const isActive = activeMode === mode;
+    const borderColor = isActive ? (mode === 'live' ? '#86efac' : '#fde68a') : '#e5e7eb';
+    const headerBg    = isActive ? (mode === 'live' ? '#dcfce7' : '#fef9c3') : '#f9fafb';
+    const headerColor = isActive ? (mode === 'live' ? '#15803d' : '#92400e') : '#6b7280';
+    const prefix = mode === 'test' ? 'sk_test_…' : 'sk_live_…';
+
+    return (
+      <div style={{
+        border: `2px solid ${borderColor}`,
+        borderRadius: 10, overflow: 'hidden',
+        opacity: isActive ? 1 : 0.85,
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '10px 16px', background: headerBg,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: headerColor }}>{label}</span>
+            {isActive && (
+              <span style={{
+                padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+                background: mode === 'live' ? '#15803d' : '#92400e', color: '#fff',
+              }}>
+                ACTIF
+              </span>
+            )}
+          </div>
+          {!isActive && (
+            <button
+              type="button"
+              onClick={() => switchMode(mode)}
+              disabled={switching || !info?.configured}
+              title={!info?.configured ? 'Configurez les clés avant d\'activer ce mode' : ''}
+              style={{
+                padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                background: info?.configured ? '#2563eb' : '#e5e7eb',
+                color: info?.configured ? '#fff' : '#9ca3af',
+                border: 'none', cursor: info?.configured && !switching ? 'pointer' : 'default',
+              }}
+            >
+              {switching ? '…' : 'Activer'}
+            </button>
+          )}
+        </div>
+
+        {/* Status */}
+        <div style={{ padding: '12px 16px', fontSize: 13 }}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
+            <div>
+              <span style={{ color: '#6b7280' }}>Clé : </span>
+              {info?.configured
+                ? <code style={{ fontSize: 12, color: '#374151' }}>{info.key_hint}</code>
+                : <span style={{ color: '#9ca3af' }}>Non renseignée</span>}
+            </div>
+            <div>
+              <span style={{ color: '#6b7280' }}>Webhook : </span>
+              {info?.webhook_configured
+                ? <span style={{ color: '#15803d', fontWeight: 600 }}>OK</span>
+                : <span style={{ color: '#9ca3af' }}>Non renseigné</span>}
+            </div>
+          </div>
+
+          {/* Form */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>
+                Clé secrète <span style={{ color: '#9ca3af' }}>({prefix})</span>
+              </label>
+              <input
+                type="password"
+                value={sk}
+                onChange={e => setSk(e.target.value)}
+                placeholder={info?.configured ? '••• laisser vide pour conserver •••' : prefix}
+                autoComplete="new-password"
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6,
+                  fontSize: 13, background: '#fff',
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>
+                Webhook secret <span style={{ color: '#9ca3af' }}>(whsec_…)</span>
+              </label>
+              <input
+                type="password"
+                value={wh}
+                onChange={e => setWh(e.target.value)}
+                placeholder={info?.webhook_configured ? '••• laisser vide pour conserver •••' : 'whsec_…'}
+                autoComplete="new-password"
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6,
+                  fontSize: 13, background: '#fff',
+                }}
+              />
+            </div>
+            <div>
+              <button
+                type="button"
+                onClick={() => saveMode(mode)}
+                disabled={saving || (!sk.trim() && !wh.trim())}
+                style={{
+                  padding: '6px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+                  background: saving || (!sk.trim() && !wh.trim()) ? '#e5e7eb' : '#2563eb',
+                  color: saving || (!sk.trim() && !wh.trim()) ? '#9ca3af' : '#fff',
+                  border: 'none',
+                  cursor: saving || (!sk.trim() && !wh.trim()) ? 'default' : 'pointer',
+                }}
+              >
+                {saving ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card" style={{ maxWidth: 660 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h3 style={{ margin: 0 }}>Configuration Stripe</h3>
+        {!loading && status && (
+          <span style={{
+            padding: '2px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+            background: isLiveActive ? '#dcfce7' : '#fef9c3',
+            color:      isLiveActive ? '#15803d' : '#92400e',
+            border:     `1px solid ${isLiveActive ? '#86efac' : '#fde68a'}`,
+          }}>
+            {isLiveActive ? 'Production (live)' : 'Test (sandbox)'}
+          </span>
+        )}
+      </div>
+
+      {loading && <div style={{ color: '#6b7280', fontSize: 14, marginBottom: 16 }}>Chargement...</div>}
+
+      <MsgBanner msg={msg} />
+
+      {!loading && status && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <ModeCard
+            mode="test" label="Mode Test (sandbox)" info={status.test}
+            sk={testSK} setSk={setTestSK} wh={testWH} setWh={setTestWH}
+          />
+          <ModeCard
+            mode="live" label="Mode Production (live)" info={status.live}
+            sk={liveSK} setSk={setLiveSK} wh={liveWH} setWh={setLiveWH}
+          />
+        </div>
+      )}
+
+      {!loading && status && (
+        <div style={{ marginTop: 16, padding: '10px 14px', borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 12, color: '#1e40af' }}>
+          Le mode actif détermine quelles clés sont utilisées pour les paiements et webhooks.
+          Basculer de mode ne supprime pas les clés de l'autre mode.
+        </div>
+      )}
+    </div>
+  );
+}
