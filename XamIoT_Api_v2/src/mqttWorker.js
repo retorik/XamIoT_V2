@@ -4,6 +4,8 @@ import { q } from './db.js';
 import { sendAPNS } from './apns.js';
 import { sendFCM } from './fcm.js';
 import { getMqttConfig, extractTopicSuffix, getFrameConfig, getAllFrameFields, getPrimaryField } from './mqttConfig.js';
+import { dispatch } from './notifDispatcher.js';
+import { evaluateSensorRules, onDeviceActivity } from './sysNotifEngine.js';
 
 /* ------------------------- Helpers config/env ------------------------- */
 function bool(v, dflt = false) {
@@ -249,11 +251,28 @@ export function startWorker() {
           const err = otaPayload.error ?? '?';
           if (err === 'max_retries_reached') {
             console.error(`[OTA] ${chipid} ABANDON — max tentatives atteint, retain effacé`);
+            // Notification — OTA échoué (propriétaire du device)
+            const { rows: espRow } = await q('SELECT user_id, name FROM esp_devices WHERE esp_uid=$1', [chipid]).catch(() => ({ rows: [] }));
+            if (espRow[0]?.user_id) {
+              dispatch('ota_failed', espRow[0].user_id, {
+                esp_name: espRow[0].name || chipid,
+                version: otaPayload.version || '',
+                error: err,
+              }, { resourceType: 'esp_device', resourceId: chipid }).catch(() => {});
+            }
           } else {
             console.warn(`[OTA] ${chipid} tentative échouée (${err}) — retry dans 5 min`);
           }
         } else if (otaPayload.status === 'success') {
           console.log(`[OTA] ${chipid} SUCCES — fw=${otaPayload.version ?? '?'} retain effacé`);
+          // Notification — OTA réussi (propriétaire du device)
+          const { rows: espRow } = await q('SELECT user_id, name FROM esp_devices WHERE esp_uid=$1', [chipid]).catch(() => ({ rows: [] }));
+          if (espRow[0]?.user_id) {
+            dispatch('ota_success', espRow[0].user_id, {
+              esp_name: espRow[0].name || chipid,
+              version: otaPayload.version || '',
+            }, { resourceType: 'esp_device', resourceId: chipid }).catch(() => {});
+          }
         }
         return;
       }
@@ -358,7 +377,13 @@ export function startWorker() {
         }
       }
 
-      // 4) Charger règles actives
+      // 3c) Sys 3 — activité device (détection retour en ligne)
+      onDeviceActivity(esp.id, esp.user_id, esp.name, esp.esp_uid).catch(() => {});
+
+      // 3d) Sys 3 — évaluation règles capteur système
+      evaluateSensorRules(esp, obj).catch(() => {});
+
+      // 4) Charger règles actives (Système 1 — alert_rules)
       const { rows: rules } = await q(
         `SELECT r.id, r.field, r.op, r.threshold_num, r.threshold_str, r.cooldown_sec
            FROM alert_rules r

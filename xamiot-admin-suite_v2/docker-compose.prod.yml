@@ -4,6 +4,7 @@ services:
       context: ./admin-ui
       args:
         VITE_API_BASE: https://apixam.holiceo.com
+        VITE_SITE_URL: https://xamsite.holiceo.com
     container_name: xamiot-admin-ui
     restart: unless-stopped
     networks: [proxy]

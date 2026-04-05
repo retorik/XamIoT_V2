@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../api.js';
+import NotifAutoTab from './NotifAutoTab.jsx';
 
 const PAGE_SIZE = 50;
 
@@ -43,7 +44,10 @@ export default function Notifications() {
   const [err,      setErr]      = useState('');
 
   // ── Historique ───────────────────────────────────────────
-  const [history,        setHistory]        = useState([]);
+  const [historySource,  setHistorySource]  = useState('all');
+  const [historyRows,    setHistoryRows]    = useState([]);
+  const [historyTotal,   setHistoryTotal]   = useState(0);
+  const [historyPage,    setHistoryPage]    = useState(0);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const debouncedSearch = useDebounce(search, 400);
@@ -80,17 +84,66 @@ export default function Notifications() {
     return () => { cancelled = true; };
   }, [debouncedSearch, espTypeId, mobilePlatform, hasPush, page]);
 
-  // Charge l'historique quand l'onglet bascule
+  // Charge l'historique quand l'onglet, le filtre ou la page changent
   useEffect(() => {
     if (tab !== 'history') return;
     loadHistory();
-  }, [tab]);
+  }, [tab, historySource, historyPage]);
 
   async function loadHistory() {
     setLoadingHistory(true);
     try {
-      const data = await apiFetch('/admin/campaigns?limit=50');
-      setHistory(data || []);
+      const LIMIT = 50;
+      const offset = historyPage * LIMIT;
+      const p = new URLSearchParams({ limit: String(LIMIT), offset: String(offset) });
+
+      // Normalise chaque source en format commun
+      function normManual(h) {
+        const channels = (h.send_types || []).join(', ');
+        const ok = (h.success_push || 0) + (h.success_email || 0);
+        const ko = (h.fail_push || 0) + (h.fail_email || 0);
+        const st = ko > 0 ? 'failed' : ok > 0 ? 'sent' : 'sent';
+        return { _id: h.id, date: h.sent_at, source: 'manual', description: h.title || h.subject || '—', channel: channels, recipient: h.sent_by || '—', status: st, detail: `${ok} OK${ko > 0 ? ` / ${ko} KO` : ''}` };
+      }
+      function normAuto(r) {
+        return { _id: `a-${r.id}`, date: r.sent_at, source: 'auto', description: r.event_key, channel: r.channel, recipient: r.recipient || '—', status: r.status, detail: r.error || '' };
+      }
+      function normSys(r) {
+        return { _id: `s-${r.id}`, date: r.sent_at, source: 'sys', description: r.rule_name || r.trigger_type, channel: r.channel, recipient: r.recipient || '—', status: r.status, detail: r.error || '' };
+      }
+
+      let rows = [], total = 0;
+
+      if (historySource === 'manual') {
+        const d = await apiFetch(`/admin/campaigns?limit=${LIMIT}&offset=${offset}`);
+        rows = (d || []).map(normManual);
+        total = rows.length + offset; // campaigns n'a pas de total — approx
+      } else if (historySource === 'auto') {
+        const d = await apiFetch(`/admin/notif/auto-log?${p}`);
+        rows = (d.rows || []).map(normAuto);
+        total = d.total || 0;
+      } else if (historySource === 'sys') {
+        const d = await apiFetch(`/admin/notif/sys-log?${p}`);
+        rows = (d.rows || []).map(normSys);
+        total = d.total || 0;
+      } else {
+        // Tous — charge les 3 en parallèle (50 chacun) et fusionne par date desc
+        const pAll = new URLSearchParams({ limit: '50', offset: '0' });
+        const [manual, autoLog, sysLog] = await Promise.all([
+          apiFetch(`/admin/campaigns?limit=50`).catch(() => []),
+          apiFetch(`/admin/notif/auto-log?${pAll}`).catch(() => ({ rows: [] })),
+          apiFetch(`/admin/notif/sys-log?${pAll}`).catch(() => ({ rows: [] })),
+        ]);
+        rows = [
+          ...(manual || []).map(normManual),
+          ...(autoLog.rows || []).map(normAuto),
+          ...(sysLog.rows || []).map(normSys),
+        ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, LIMIT);
+        total = rows.length;
+      }
+
+      setHistoryRows(rows);
+      setHistoryTotal(total);
     } catch (e) {
       setErr(e?.data?.error || e.message);
     } finally {
@@ -156,7 +209,7 @@ export default function Notifications() {
 
       {/* Onglets */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid #e5e7eb' }}>
-        {[['send', 'Envoi manuel'], ['history', 'Historique']].map(([key, label]) => (
+        {[['send', 'Envoi manuel'], ['auto', 'Envoi auto'], ['history', 'Historique']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)} style={{
             padding: '8px 20px', border: 'none', background: 'none', cursor: 'pointer',
             borderBottom: tab === key ? '2px solid #2563eb' : '2px solid transparent',
@@ -355,53 +408,92 @@ export default function Notifications() {
       )}
 
       {/* ══ Historique ══ */}
-      {tab === 'history' && (
-        <div>
-          <div style={{ textAlign: 'right', marginBottom: 12 }}>
-            <button className="btn" onClick={loadHistory} disabled={loadingHistory}>Rafraîchir</button>
-          </div>
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Par</th>
-                  <th>Canaux</th>
-                  <th>Titre / Sujet</th>
-                  <th style={{ textAlign: 'right' }}>Cibles</th>
-                  <th style={{ textAlign: 'right' }}>Push OK</th>
-                  <th style={{ textAlign: 'right' }}>Push KO</th>
-                  <th style={{ textAlign: 'right' }}>Email OK</th>
-                  <th style={{ textAlign: 'right' }}>Email KO</th>
-                  <th style={{ textAlign: 'right' }}>Erreurs</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loadingHistory ? (
-                  <tr><td colSpan="10" style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>Chargement…</td></tr>
-                ) : history.length === 0 ? (
-                  <tr><td colSpan="10" style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>Aucun envoi enregistré.</td></tr>
-                ) : history.map(h => (
-                  <tr key={h.id}>
-                    <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(h.sent_at).toLocaleString('fr-FR')}</td>
-                    <td style={{ fontSize: 12 }}>{h.sent_by || '—'}</td>
-                    <td style={{ fontSize: 12 }}>{(h.send_types || []).join(', ')}</td>
-                    <td style={{ fontSize: 12, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {h.title || h.subject || <span style={{ color: '#9ca3af' }}>—</span>}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>{h.target_count}</td>
-                    <td style={{ textAlign: 'right', color: h.success_push > 0 ? '#15803d' : '#d1d5db' }}>{h.success_push}</td>
-                    <td style={{ textAlign: 'right', color: h.fail_push > 0 ? '#b91c1c' : '#d1d5db' }}>{h.fail_push}</td>
-                    <td style={{ textAlign: 'right', color: h.success_email > 0 ? '#15803d' : '#d1d5db' }}>{h.success_email}</td>
-                    <td style={{ textAlign: 'right', color: h.fail_email > 0 ? '#b91c1c' : '#d1d5db' }}>{h.fail_email}</td>
-                    <td style={{ textAlign: 'right', color: h.error_count > 0 ? '#b91c1c' : '#d1d5db' }}>{h.error_count}</td>
+      {tab === 'history' && (() => {
+        const sourceLabel = { manual: 'Envoi manuel', auto: 'Transactionnel', sys: 'Règle système' };
+        const sourceBadge = { manual: '#2563eb', auto: '#9333ea', sys: '#d97706' };
+        const statusColor = { sent: '#15803d', failed: '#b91c1c', skipped_cooldown: '#d97706', skipped_disabled: '#6b7280', skipped_no_recipient: '#6b7280', skipped_smtp_off: '#d97706' };
+        const totalPages  = Math.ceil(historyTotal / 50);
+        return (
+          <div>
+            {/* Filtres */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, color: '#374151', fontWeight: 500 }}>Source :</span>
+              {[['all', 'Tous'], ['manual', 'Envoi manuel'], ['auto', 'Transactionnel'], ['sys', 'Règle système']].map(([key, label]) => (
+                <button key={key} onClick={() => { setHistorySource(key); setHistoryPage(0); }} style={{
+                  padding: '4px 14px', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontSize: 13,
+                  background: historySource === key ? '#2563eb' : '#fff',
+                  color: historySource === key ? '#fff' : '#374151',
+                }}>{label}</button>
+              ))}
+              <button className="btn" style={{ marginLeft: 'auto', fontSize: 12 }} onClick={loadHistory} disabled={loadingHistory}>
+                Rafraîchir
+              </button>
+              <span style={{ fontSize: 12, color: '#6b7280' }}>{historyTotal > 0 ? `${historyTotal} entrée${historyTotal > 1 ? 's' : ''}` : ''}</span>
+            </div>
+
+            {/* Tableau unifié */}
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Source</th>
+                    <th>Description</th>
+                    <th>Canal</th>
+                    <th>Destinataire</th>
+                    <th>Statut</th>
+                    <th>Détail</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {loadingHistory ? (
+                    <tr><td colSpan="7" style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>Chargement…</td></tr>
+                  ) : historyRows.length === 0 ? (
+                    <tr><td colSpan="7" style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>Aucun envoi enregistré.</td></tr>
+                  ) : historyRows.map(r => (
+                    <tr key={r._id}>
+                      <td style={{ fontSize: 12, whiteSpace: 'nowrap', color: '#6b7280' }}>
+                        {new Date(r.date).toLocaleString('fr-FR')}
+                      </td>
+                      <td>
+                        <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: (sourceBadge[r.source] || '#6b7280') + '22', color: sourceBadge[r.source] || '#6b7280' }}>
+                          {sourceLabel[r.source] || r.source}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: 12, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.description}
+                      </td>
+                      <td style={{ fontSize: 12, color: '#374151' }}>{r.channel}</td>
+                      <td style={{ fontSize: 12, color: '#6b7280', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.recipient}
+                      </td>
+                      <td>
+                        <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: (statusColor[r.status] || '#6b7280') + '22', color: statusColor[r.status] || '#6b7280' }}>
+                          {r.status}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: 12, color: r.detail && r.detail.includes('KO') ? '#b91c1c' : '#6b7280', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.detail}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 12 }}>
+                <button className="btn" disabled={historyPage === 0} onClick={() => setHistoryPage(p => p - 1)}>← Précédent</button>
+                <span style={{ padding: '6px 12px', fontSize: 13, color: '#374151' }}>{historyPage + 1} / {totalPages}</span>
+                <button className="btn" disabled={historyPage >= totalPages - 1} onClick={() => setHistoryPage(p => p + 1)}>Suivant →</button>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* ══ Envoi auto ══ */}
+      {tab === 'auto' && <NotifAutoTab />}
     </div>
   );
 }

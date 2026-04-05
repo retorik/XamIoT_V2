@@ -16,3 +16,7 @@
 .prose img { @apply rounded-lg my-4 max-w-full; }
 .prose strong { @apply font-semibold; }
 .prose code { @apply bg-gray-100 px-1 rounded text-sm font-mono; }
+.prose table { @apply w-full border-collapse my-6 text-sm; }
+.prose table th { @apply bg-gray-100 font-semibold text-left px-4 py-2 border border-gray-300; }
+.prose table td { @apply px-4 py-2 border border-gray-300; }
+.prose table tr:nth-child(even) td { @apply bg-gray-50; }

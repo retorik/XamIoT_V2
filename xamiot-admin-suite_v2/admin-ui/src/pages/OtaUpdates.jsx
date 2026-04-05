@@ -148,7 +148,9 @@ export default function OtaUpdates() {
 function CreateOtaForm({ onCreated, onClose }) {
   const [form, setForm] = useState({
     version: '', name: '', description: '', device_type_id: '', min_fw_version: '', scheduled_at: '',
+    firmware_url: '',
   });
+  const [legacyMode, setLegacyMode] = useState(false);
   const [file, setFile] = useState(null);
   const [deviceTypes, setDeviceTypes] = useState([]);
   const [err, setErr] = useState('');
@@ -162,11 +164,12 @@ function CreateOtaForm({ onCreated, onClose }) {
 
   async function submit(e) {
     e.preventDefault();
-    if (!file) return setErr('Fichier firmware requis');
+    if (legacyMode && !form.firmware_url.trim()) return setErr('URL du firmware requise');
+    if (!legacyMode && !file) return setErr('Fichier firmware requis');
     setLoading(true); setErr('');
     try {
       const fd = new FormData();
-      fd.append('firmware', file);
+      if (!legacyMode) fd.append('firmware', file);
       Object.entries(form).forEach(([k, v]) => { if (v) fd.append(k, v); });
 
       const token = localStorage.getItem('xamiot_admin_token');
@@ -196,6 +199,19 @@ function CreateOtaForm({ onCreated, onClose }) {
       </div>
 
       {err ? <div style={{ color: '#b91c1c', marginBottom: 10 }}>{err}</div> : null}
+
+      {/* Toggle mode */}
+      <div style={{ marginBottom: 14, padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+          <input type="checkbox" checked={legacyMode} onChange={e => setLegacyMode(e.target.checked)} />
+          <span>Mode URL externe (capteurs legacy)</span>
+        </label>
+        {legacyMode && (
+          <span style={{ fontSize: 11, color: '#7c3aed', background: '#f3e8ff', border: '1px solid #d8b4fe', borderRadius: 4, padding: '1px 6px' }}>
+            URL directe · sans HMAC
+          </span>
+        )}
+      </div>
 
       <form onSubmit={submit}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 8px', marginBottom: 10 }}>
@@ -233,21 +249,38 @@ function CreateOtaForm({ onCreated, onClose }) {
           <input className="input" type="datetime-local" value={form.scheduled_at} onChange={e => set('scheduled_at', e.target.value)} />
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 12, color: '#6b7280' }}>Fichier firmware * (.bin, .elf, .hex…)</label>
-          <input
-            type="file"
-            className="input"
-            accept=".bin,.elf,.hex,.img"
-            onChange={e => setFile(e.target.files[0] || null)}
-            required
-            style={{ padding: '6px' }}
-          />
-          {file && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>{file.name} — {(file.size / 1024).toFixed(1)} ko</div>}
-        </div>
+        {legacyMode ? (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 12, color: '#6b7280' }}>URL du firmware * <span style={{ color: '#7c3aed' }}>(HTTP ou HTTPS direct)</span></label>
+            <input
+              className="input"
+              type="url"
+              value={form.firmware_url}
+              onChange={e => set('firmware_url', e.target.value)}
+              placeholder="http://fw.xamiot.com/fw250.bin"
+              required
+            />
+            <div style={{ fontSize: 11, color: '#7c3aed', marginTop: 4 }}>
+              L'URL est envoyée directement au capteur via MQTT. Aucun HMAC n'est vérifié — réservé aux firmwares legacy.
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 12, color: '#6b7280' }}>Fichier firmware * (.bin, .elf, .hex…)</label>
+            <input
+              type="file"
+              className="input"
+              accept=".bin,.elf,.hex,.img"
+              onChange={e => setFile(e.target.files[0] || null)}
+              required
+              style={{ padding: '6px' }}
+            />
+            {file && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>{file.name} — {(file.size / 1024).toFixed(1)} ko</div>}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn" type="submit" disabled={loading}>{loading ? 'Upload…' : 'Créer'}</button>
+          <button className="btn" type="submit" disabled={loading}>{loading ? (legacyMode ? 'Création…' : 'Upload…') : 'Créer'}</button>
           <button className="btn secondary" type="button" onClick={onClose}>Annuler</button>
         </div>
       </form>

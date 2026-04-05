@@ -6,6 +6,18 @@ import { useEffect, useState } from 'react';
 import { getUser } from '@/lib/auth';
 import LogoutButton from './LogoutButton';
 
+function HamburgerIcon({ open }: { open: boolean }) {
+  return (
+    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      {open ? (
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+      ) : (
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+      )}
+    </svg>
+  );
+}
+
 interface NavItem {
   href: string;
   label: string;
@@ -60,6 +72,11 @@ const navItems: NavItem[] = [
     icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z" /></svg>,
   },
   {
+    href: '/adresses',
+    label: 'Mes adresses',
+    icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>,
+  },
+  {
     href: '/profile',
     label: 'Mon profil',
     icon: (
@@ -70,59 +87,122 @@ const navItems: NavItem[] = [
   },
 ];
 
+function Logo() {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
+        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.348 14.652a3.75 3.75 0 010-5.304m5.304 0a3.75 3.75 0 010 5.304m-7.425 2.121a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.807-3.808-9.98 0-13.788m13.788 0c3.808 3.807 3.808 9.98 0 13.788M12 12h.008v.008H12V12z" />
+        </svg>
+      </div>
+      <span className="font-bold text-slate-900 text-sm">XamIoT Portal</span>
+    </div>
+  );
+}
+
+function NavLinks({ pathname, onClose }: { pathname: string; onClose?: () => void }) {
+  return (
+    <nav className="flex-1 px-3 py-4 space-y-1">
+      {navItems.map((item) => {
+        const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+        return (
+          <Link
+            key={`${item.href}-${item.label}`}
+            href={item.href}
+            onClick={onClose}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
+              isActive
+                ? 'bg-brand-50 text-brand-700'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <span className={isActive ? 'text-brand-600' : 'text-slate-400'}>
+              {item.icon}
+            </span>
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [email, setEmail] = useState('');
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const user = getUser();
     if (user?.email) setEmail(user.email);
   }, []);
 
+  // Ferme le drawer mobile lors d'un changement de route
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
+
   return (
-    <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200 flex-shrink-0">
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-100">
-        <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
-          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.348 14.652a3.75 3.75 0 010-5.304m5.304 0a3.75 3.75 0 010 5.304m-7.425 2.121a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.807-3.808-9.98 0-13.788m13.788 0c3.808 3.807 3.808 9.98 0 13.788M12 12h.008v.008H12V12z" />
-          </svg>
+    <>
+      {/* ── Header mobile (visible < md) ──────────────────────── */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4">
+        <Logo />
+        <button
+          onClick={() => setMobileOpen(v => !v)}
+          className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition"
+          aria-label="Menu"
+        >
+          <HamburgerIcon open={mobileOpen} />
+        </button>
+      </header>
+
+      {/* ── Overlay + Drawer mobile ────────────────────────────── */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          {/* Overlay */}
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMobileOpen(false)}
+          />
+          {/* Drawer */}
+          <aside className="relative z-10 flex flex-col w-72 max-w-[85vw] bg-white h-full shadow-xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <Logo />
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <NavLinks pathname={pathname} onClose={() => setMobileOpen(false)} />
+            <div className="border-t border-slate-100 px-3 py-4 space-y-2">
+              {email && (
+                <div className="px-3 py-2">
+                  <p className="text-xs text-slate-400 truncate">{email}</p>
+                </div>
+              )}
+              <LogoutButton />
+            </div>
+          </aside>
         </div>
-        <span className="font-bold text-slate-900 text-sm">XamIoT Portal</span>
-      </div>
+      )}
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-          return (
-            <Link
-              key={`${item.href}-${item.label}`}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
-                isActive
-                  ? 'bg-brand-50 text-brand-700'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-            >
-              <span className={isActive ? 'text-brand-600' : 'text-slate-400'}>
-                {item.icon}
-              </span>
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Pied de sidebar */}
-      <div className="border-t border-slate-100 px-3 py-4 space-y-2">
-        {email && (
-          <div className="px-3 py-2">
-            <p className="text-xs text-slate-400 truncate">{email}</p>
-          </div>
-        )}
-        <LogoutButton />
-      </div>
-    </aside>
+      {/* ── Sidebar desktop (hidden < md) ─────────────────────── */}
+      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200 flex-shrink-0">
+        <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-100">
+          <Logo />
+        </div>
+        <NavLinks pathname={pathname} />
+        <div className="border-t border-slate-100 px-3 py-4 space-y-2">
+          {email && (
+            <div className="px-3 py-2">
+              <p className="text-xs text-slate-400 truncate">{email}</p>
+            </div>
+          )}
+          <LogoutButton />
+        </div>
+      </aside>
+    </>
   );
 }

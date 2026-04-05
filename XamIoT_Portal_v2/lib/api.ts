@@ -21,3 +21,21 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
   }
   return res.json();
 }
+
+/** Télécharge un fichier binaire avec l'auth JWT et déclenche le téléchargement navigateur. */
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

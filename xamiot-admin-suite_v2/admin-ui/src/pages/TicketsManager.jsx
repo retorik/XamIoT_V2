@@ -42,6 +42,8 @@ export default function TicketsManager() {
   const [replyBody, setReplyBody]   = useState('');
   const [replyLoading, setReplyLoading] = useState(false);
   const [newStatus, setNewStatus]   = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null); // ticket à supprimer
+  const [deleting, setDeleting]     = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,6 +95,21 @@ export default function TicketsManager() {
       setMsg({ type: 'error', text: e?.data?.error || e.message });
     } finally {
       setReplyLoading(false);
+    }
+  }
+
+  async function deleteTicket() {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/admin/tickets/${confirmDelete.id}`, { method: 'DELETE' });
+      setConfirmDelete(null);
+      if (selected?.id === confirmDelete.id) closeDetail();
+      await load();
+    } catch (e) {
+      setMsg({ type: 'error', text: e?.data?.error || e.message });
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -160,7 +177,7 @@ export default function TicketsManager() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['Sujet', 'Utilisateur', 'Statut', 'Priorité', 'Messages', 'Créé le', ''].map(h => (
+                {['Sujet', 'Utilisateur', 'Statut', 'Priorité', 'Messages', 'Créé le', '', ''].map(h => (
                   <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -193,10 +210,49 @@ export default function TicketsManager() {
                       Voir
                     </button>
                   </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <button
+                      onClick={() => setConfirmDelete(t)}
+                      style={{ background: 'none', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 6, padding: '5px 10px', fontSize: 12, cursor: 'pointer' }}
+                    >
+                      Supprimer
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Modale confirmation suppression ticket */}
+      {confirmDelete && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 10, padding: 28, width: 420, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin: '0 0 10px', fontSize: 17, color: '#b91c1c' }}>Supprimer définitivement ce ticket</h3>
+            <p style={{ margin: '0 0 6px', fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+              Cette action est <strong>irréversible</strong>. Le ticket et tous ses messages seront supprimés.
+            </p>
+            <p style={{ margin: '0 0 16px', fontWeight: 600, fontSize: 13, color: '#111', background: '#f3f4f6', padding: '8px 12px', borderRadius: 6 }}>
+              {confirmDelete.subject}
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: 6, padding: '7px 16px', fontSize: 14, cursor: 'pointer' }}
+                onClick={() => setConfirmDelete(null)}
+                disabled={deleting}
+              >
+                Annuler
+              </button>
+              <button
+                style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 16px', fontSize: 14, cursor: 'pointer', opacity: deleting ? 0.7 : 1 }}
+                onClick={deleteTicket}
+                disabled={deleting}
+              >
+                {deleting ? 'Suppression…' : 'Supprimer définitivement'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

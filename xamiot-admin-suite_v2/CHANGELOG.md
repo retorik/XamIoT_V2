@@ -9,6 +9,40 @@ Format : [SemVer](https://semver.org/) — `[version] YYYY-MM-DD`
 
 ---
 
+## Boutique — Refonte complète (2026-04-03)
+
+### API
+- **Ajouté** : Table `countries` (249 pays ISO 3166-1) avec config livraison/taxes/douanes par pays
+- **Ajouté** : Table `user_addresses` (adresses livraison/facturation, multi-adresses par utilisateur)
+- **Ajouté** : Colonnes shipping_*/billing_* sur la table `orders` (adresses complètes par commande)
+- **Ajouté** : `GET/PATCH /admin/countries`, `POST /admin/countries/bulk` — gestion admin des pays
+- **Ajouté** : `GET /public/countries` — pays actifs pour le checkout
+- **Ajouté** : CRUD `/me/addresses` — adresses utilisateur avec audit
+- **Ajouté** : `POST /public/checkout/calculate` — preview frais/taxes avant paiement
+- **Ajouté** : Checkout enrichi avec adresses complètes et calcul dynamique (port + TVA + douanes)
+- **Ajouté** : Audit logs pour AUTH_SIGNUP, AUTH_VERIFY_EMAIL, ADDRESS_CREATE/UPDATE/DELETE
+
+### Back-office
+- **Ajouté** : Page Pays & Livraison dans l'onglet Boutique (recherche, filtres, édition inline)
+- **Ajouté** : Picker média pour l'image produit (sélection depuis la médiathèque CMS)
+
+### Site public
+- **Ajouté** : Auth locale (login/signup/verify-email) sur `/compte` — plus de redirection portail
+- **Ajouté** : Panier client-side (localStorage) sur `/panier`
+- **Ajouté** : Tunnel checkout complet sur `/checkout` (adresses + calcul frais + paiement)
+- **Ajouté** : Confirmation commande sur `/checkout/confirmation`
+- **Modifié** : Header — liens Panier et Mon compte au lieu du lien portail
+
+### Portail client
+- **Supprimé** : Pages boutique, panier, commande (le portail = suivi uniquement)
+- **Supprimé** : `lib/cart.ts` (la logique panier est désormais sur le site public)
+
+### Tests
+- **Ajouté** : `addressValidation.test.js` — validation adresses + calcul frais/taxes (20 tests)
+- **Ajouté** : `cartLogic.test.js` — logique panier : total, count, add, update, remove (17 tests)
+
+---
+
 ## Site public (site/)
 
 ### [2026-04-03]

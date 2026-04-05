@@ -1,18 +1,274 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, useEditorState } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
 import Image from '@tiptap/extension-image';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableHeader from '@tiptap/extension-table-header';
+import TableCell from '@tiptap/extension-table-cell';
+import TextStyle from '@tiptap/extension-text-style';
+import Color from '@tiptap/extension-color';
+import FontFamily from '@tiptap/extension-font-family';
 import { apiFetch } from '../api.js';
 
+// Extensions TableCell/TableHeader enrichis (backgroundColor, borderWidth, borderColor)
+const cellAttrs = parent => ({
+  ...parent?.(),
+  backgroundColor: { default: null, parseHTML: el => el.style.backgroundColor || null,  renderHTML: a => a.backgroundColor ? { style: `background-color:${a.backgroundColor}` } : {} },
+  verticalAlign:   { default: null, parseHTML: el => el.style.verticalAlign || null,     renderHTML: a => a.verticalAlign ? { style: `vertical-align:${a.verticalAlign}` } : {} },
+  borderWidth:     { default: null, parseHTML: el => el.style.borderWidth ? parseFloat(el.style.borderWidth) : null, renderHTML: a => a.borderWidth != null ? { style: `border-width:${a.borderWidth}px;border-style:solid` } : {} },
+  borderColor:     { default: null, parseHTML: el => el.style.borderColor || null,       renderHTML: a => a.borderColor ? { style: `border-color:${a.borderColor}` } : {} },
+});
+const TableCellExt   = TableCell.extend({   addAttributes() { return cellAttrs(this.parent); } });
+const TableHeaderExt = TableHeader.extend({ addAttributes() { return cellAttrs(this.parent); } });
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://apixam.holiceo.com';
 const LANGS = ['fr', 'en', 'es'];
 const LANG_LABEL = { fr: '🇫🇷 Français', en: '🇬🇧 English', es: '🇪🇸 Español' };
 
+/* ── Picker médiathèque (modal inline) ─────────────────── */
+function MediaPickerModal({ onPick, onClose }) {
+  const [files, setFiles] = React.useState([]);
+  const [search, setSearch] = React.useState('');
+  React.useEffect(() => {
+    apiFetch('/admin/cms/media').then(setFiles).catch(() => {});
+  }, []);
+  const filtered = files.filter(f =>
+    f.original_name?.toLowerCase().includes(search.toLowerCase())
+  );
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 10, padding: 20, width: 640, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <strong>Choisir une image</strong>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+        </div>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher…"
+          style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 10px', marginBottom: 12, fontSize: 13 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, overflowY: 'auto' }}>
+          {filtered.filter(f => f.mime_type?.startsWith('image/')).map(f => (
+            <div key={f.id} onClick={() => { onPick(`${API_BASE}${f.url_path}`); onClose(); }}
+              style={{ cursor: 'pointer', border: '2px solid transparent', borderRadius: 6, overflow: 'hidden' }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = '#2563eb'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
+              <img src={`${API_BASE}${f.url_path}`} alt={f.alt_text || f.original_name}
+                style={{ width: '100%', height: 80, objectFit: 'cover', display: 'block' }} />
+              <div style={{ padding: '3px 5px', fontSize: 10, color: '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {f.original_name}
+              </div>
+            </div>
+          ))}
+          {filtered.filter(f => f.mime_type?.startsWith('image/')).length === 0 && (
+            <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#9ca3af', padding: 24 }}>Aucune image</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Modal d'insertion de lien ─────────────────────────── */
+function LinkModal({ editor, onClose }) {
+  const [tab, setTab]           = React.useState('url');
+  const [url, setUrl]           = React.useState('');
+  const [newTab, setNewTab]     = React.useState(false);
+  const [selectedSlug, setSelectedSlug] = React.useState('');
+  const [pages, setPages]       = React.useState([]);
+
+  const existingHref = editor.getAttributes('link').href || '';
+
+  React.useEffect(() => {
+    if (existingHref) {
+      if (existingHref.startsWith('/') && !existingHref.startsWith('//')) {
+        setTab('page');
+        setSelectedSlug(existingHref.replace(/^\//, ''));
+      } else {
+        setTab('url');
+        setUrl(existingHref);
+      }
+      setNewTab(editor.getAttributes('link').target === '_blank');
+    }
+  }, []);
+
+  React.useEffect(() => {
+    apiFetch('/admin/cms/pages').then(data => setPages(data || [])).catch(() => {});
+  }, []);
+
+  function apply() {
+    const href = tab === 'url' ? url.trim() : (selectedSlug ? `/${selectedSlug}` : '');
+    if (!href) return;
+    editor.chain().focus().setLink({ href, target: newTab ? '_blank' : null }).run();
+    onClose();
+  }
+
+  function remove() {
+    editor.chain().focus().unsetLink().run();
+    onClose();
+  }
+
+  const tabBtn = (t, label) => (
+    <button onMouseDown={e => { e.preventDefault(); setTab(t); }}
+      style={{ padding: '5px 14px', fontSize: 13, fontWeight: 600, borderRadius: 4, border: '1px solid #d1d5db', cursor: 'pointer',
+        background: tab === t ? '#2563eb' : '#f3f4f6', color: tab === t ? '#fff' : '#374151' }}>
+      {label}
+    </button>
+  );
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 10, padding: 20, width: 420 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <strong style={{ fontSize: 15 }}>Insérer un lien</strong>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          {tabBtn('url', 'URL')}
+          {tabBtn('page', 'Page du site')}
+        </div>
+        {tab === 'url' ? (
+          <input
+            autoFocus
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            placeholder="https://..."
+            onKeyDown={e => { if (e.key === 'Enter') apply(); }}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, marginBottom: 10 }}
+          />
+        ) : (
+          <select
+            value={selectedSlug}
+            onChange={e => setSelectedSlug(e.target.value)}
+            style={{ width: '100%', padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, marginBottom: 10 }}
+          >
+            <option value="">— Choisir une page —</option>
+            {pages.map(p => {
+              const title = p.translations?.find(t => t.lang === 'fr')?.title || p.slug;
+              return <option key={p.id} value={p.slug}>{title}</option>;
+            })}
+          </select>
+        )}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, marginBottom: 14, cursor: 'pointer' }}>
+          <input type="checkbox" checked={newTab} onChange={e => setNewTab(e.target.checked)} />
+          Ouvrir dans un nouvel onglet
+        </label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onMouseDown={e => { e.preventDefault(); apply(); }}
+            style={{ padding: '6px 18px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer' }}>
+            Appliquer
+          </button>
+          {existingHref && (
+            <button onMouseDown={e => { e.preventDefault(); remove(); }}
+              style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: '1px solid #fca5a5', background: '#fee2e2', color: '#b91c1c', cursor: 'pointer' }}>
+              Supprimer
+            </button>
+          )}
+          <button onMouseDown={e => { e.preventDefault(); onClose(); }}
+            style={{ padding: '6px 14px', fontSize: 13, borderRadius: 6, border: '1px solid #d1d5db', background: '#f3f4f6', color: '#374151', cursor: 'pointer' }}>
+            Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Palettes de couleurs ───────────────────────────────── */
+const TEXT_COLORS = [
+  { label: '— Couleur texte —', value: '' },
+  { label: 'Noir',          value: '#000000' },
+  { label: 'Blanc',         value: '#ffffff' },
+  { label: 'Gris',          value: '#6b7280' },
+  { label: 'Rouge',         value: '#dc2626' },
+  { label: 'Orange',        value: '#ea580c' },
+  { label: 'Ambre',         value: '#ca8a04' },
+  { label: 'Vert',          value: '#16a34a' },
+  { label: 'Bleu',          value: '#2563eb' },
+  { label: 'Indigo',        value: '#4338ca' },
+  { label: 'Violet',        value: '#9333ea' },
+  { label: 'Rose',          value: '#db2777' },
+];
+
+const CELL_BG_COLORS = [
+  { label: '— Fond cellule —', value: '' },
+  { label: 'Aucun fond',       value: 'none' },
+  { label: 'Blanc',            value: '#ffffff' },
+  { label: 'Gris très clair',  value: '#f8fafc' },
+  { label: 'Gris clair',       value: '#f1f5f9' },
+  { label: 'Gris moyen',       value: '#e2e8f0' },
+  { label: 'Bleu clair',       value: '#dbeafe' },
+  { label: 'Bleu moyen',       value: '#bfdbfe' },
+  { label: 'Vert clair',       value: '#dcfce7' },
+  { label: 'Jaune clair',      value: '#fef9c3' },
+  { label: 'Orange clair',     value: '#ffedd5' },
+  { label: 'Rouge clair',      value: '#fee2e2' },
+  { label: 'Rose clair',       value: '#fce7f3' },
+  { label: 'Violet clair',     value: '#f3e8ff' },
+];
+
+const CELL_BORDER_COLORS = [
+  { label: '— Couleur trait —', value: '' },
+  { label: 'Noir',              value: '#000000' },
+  { label: 'Gris foncé',        value: '#374151' },
+  { label: 'Gris clair',        value: '#d1d5db' },
+  { label: 'Bleu',              value: '#3b82f6' },
+  { label: 'Bleu foncé',        value: '#1d4ed8' },
+  { label: 'Rouge',             value: '#dc2626' },
+  { label: 'Vert',              value: '#16a34a' },
+  { label: 'Orange',            value: '#f97316' },
+  { label: 'Violet',            value: '#9333ea' },
+  { label: 'Transparent',       value: 'transparent' },
+];
+
+/* Sélecteur couleur avec carré préview + liste déroulante + picker libre */
+function ColorSelect({ colors, currentValue, onSelect, pickerTitle }) {
+  const preview = (currentValue && currentValue !== 'none')
+    ? currentValue
+    : 'linear-gradient(135deg,#fff 42%,#dc2626 42%,#dc2626 58%,#fff 58%)';
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+      <div style={{ width: 14, height: 14, flexShrink: 0, background: preview, border: '1px solid #9ca3af', borderRadius: 2 }} />
+      <select
+        value={currentValue || ''}
+        onChange={e => {
+          const v = e.target.value;
+          onSelect(v === 'none' ? null : (v || null));
+        }}
+        style={{ fontSize: 11, border: '1px solid #d1d5db', borderRadius: 4, padding: '2px 2px', cursor: 'pointer', height: 22, maxWidth: 120 }}
+      >
+        {colors.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+      </select>
+      <input type="color" defaultValue={currentValue && currentValue !== 'none' ? currentValue : '#000000'}
+        title={pickerTitle || 'Couleur personnalisée'}
+        style={{ width: 18, height: 22, padding: 0, border: '1px solid #9ca3af', borderRadius: 2, cursor: 'pointer', flexShrink: 0 }}
+        onChange={e => onSelect(e.target.value)} />
+    </div>
+  );
+}
+
 /* ── Barre d'outils TipTap ─────────────────────────────── */
-function Toolbar({ editor }) {
+// isInTable et isImage sont calculés dans le parent (useEditorState) et passés en props
+const FONTS = [
+  { label: 'Police (défaut)', value: '' },
+  { label: 'Arial', value: 'Arial, sans-serif' },
+  { label: 'Helvetica', value: 'Helvetica, sans-serif' },
+  { label: 'Verdana', value: 'Verdana, sans-serif' },
+  { label: 'Trebuchet MS', value: "'Trebuchet MS', sans-serif" },
+  { label: 'Georgia', value: 'Georgia, serif' },
+  { label: 'Times New Roman', value: "'Times New Roman', serif" },
+  { label: 'Garamond', value: 'Garamond, serif' },
+  { label: 'Courier New', value: "'Courier New', monospace" },
+  { label: 'Lucida Console', value: "'Lucida Console', monospace" },
+];
+
+function Toolbar({ editor, isInTable, isImage, fontFamily, onOpenImagePicker, sticky }) {
+  const [linkModalOpen, setLinkModalOpen] = React.useState(false);
   if (!editor) return null;
   const btn = (action, label, active) => (
     <button
@@ -26,18 +282,23 @@ function Toolbar({ editor }) {
     >{label}</button>
   );
 
-  function addLink() {
-    const url = prompt('URL du lien :');
-    if (url) editor.chain().focus().setLink({ href: url }).run();
-  }
+  function addImage() { onOpenImagePicker(url => editor.chain().focus().setImage({ src: url }).run()); }
 
-  function addImage() {
-    const url = prompt('URL de l\'image :');
-    if (url) editor.chain().focus().setImage({ src: url }).run();
+  function resizeImage() {
+    const { selection } = editor.state;
+    if (selection.node?.type.name !== 'image') return;
+    const pos     = selection.from;
+    const current = selection.node.attrs.width || '';
+    const val = prompt('Largeur de l\'image (ex: 300px, 50%, auto) :', current || '100%');
+    if (val === null) return;
+    const tr = editor.state.tr.setNodeMarkup(pos, null, { ...selection.node.attrs, width: val });
+    editor.view.dispatch(tr);
   }
 
   return (
-    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', padding: '8px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', borderRadius: '6px 6px 0 0' }}>
+    <>
+    {linkModalOpen && <LinkModal editor={editor} onClose={() => setLinkModalOpen(false)} />}
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', padding: '8px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', borderRadius: '6px 6px 0 0', ...(sticky ? { position: 'sticky', top: 36, zIndex: 10, boxShadow: '0 2px 4px rgba(0,0,0,.06)' } : {}) }}>
       {btn(() => editor.chain().focus().toggleBold().run(),        'G',  editor.isActive('bold'))}
       {btn(() => editor.chain().focus().toggleItalic().run(),      'I',  editor.isActive('italic'))}
       {btn(() => editor.chain().focus().toggleUnderline().run(),   'U',  editor.isActive('underline'))}
@@ -55,12 +316,67 @@ function Toolbar({ editor }) {
       {btn(() => editor.chain().focus().setTextAlign('center').run(), '↔', editor.isActive({ textAlign: 'center' }))}
       {btn(() => editor.chain().focus().setTextAlign('right').run(),  '➡', editor.isActive({ textAlign: 'right' }))}
       <span style={{ borderLeft: '1px solid #d1d5db', margin: '0 2px' }} />
-      {btn(addLink,  '🔗', false)}
-      {btn(addImage, '🖼', false)}
+      {btn(() => setLinkModalOpen(true), editor.isActive('link') ? '🔗 Modifier' : '🔗', editor.isActive('link'))}
+      {btn(addImage, '🖼 Insérer', false)}
+      {isImage && btn(resizeImage, '↔ Taille', false)}
+      <span style={{ borderLeft: '1px solid #d1d5db', margin: '0 2px' }} />
+      {/* Police */}
+      <select value={fontFamily}
+        onChange={e => { const v = e.target.value; v ? editor.chain().focus().setFontFamily(v).run() : editor.chain().focus().unsetFontFamily().run(); }}
+        style={{ fontSize: 12, border: '1px solid #d1d5db', borderRadius: 4, padding: '3px 4px', cursor: 'pointer', height: 26 }}>
+        {FONTS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+      </select>
+      <span style={{ borderLeft: '1px solid #d1d5db', margin: '0 2px' }} />
+      {/* Couleur texte */}
+      <ColorSelect
+        colors={TEXT_COLORS}
+        currentValue={editor.getAttributes('textStyle')?.color || ''}
+        onSelect={v => v ? editor.chain().focus().setColor(v).run() : editor.chain().focus().unsetColor().run()}
+        pickerTitle="Couleur texte personnalisée"
+      />
+      <span style={{ borderLeft: '1px solid #d1d5db', margin: '0 2px' }} />
+      {btn(() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), '⊞ Tableau', false)}
+      {isInTable && <>
+        {btn(() => editor.chain().focus().addColumnAfter().run(),   '+ Col', false)}
+        {btn(() => editor.chain().focus().deleteColumn().run(),     '− Col', false)}
+        {btn(() => editor.chain().focus().addRowAfter().run(),      '+ Ligne', false)}
+        {btn(() => editor.chain().focus().deleteRow().run(),        '− Ligne', false)}
+        {btn(() => editor.chain().focus().mergeOrSplit().run(),     '⇔ Fus/Scind', false)}
+        {btn(() => editor.chain().focus().toggleHeaderRow().run(),  'En-tête', false)}
+        {btn(() => editor.chain().focus().deleteTable().run(),      '✕ Tab', false)}
+        <span style={{ borderLeft: '1px solid #d1d5db', margin: '0 2px' }} />
+        {/* Alignement vertical cellule */}
+        {[['top','↑'],['middle','↕'],['bottom','↓']].map(([v,lbl]) => btn(
+          () => editor.chain().focus().setCellAttribute('verticalAlign', v).run(), lbl, false
+        ))}
+        {/* Alignement horizontal texte */}
+        {btn(() => editor.chain().focus().setTextAlign('left').run(),   '←', false)}
+        {btn(() => editor.chain().focus().setTextAlign('center').run(), '↔', false)}
+        {btn(() => editor.chain().focus().setTextAlign('right').run(),  '→', false)}
+        <span style={{ borderLeft: '1px solid #d1d5db', margin: '0 2px' }} />
+        {/* Fond de cellule */}
+        <ColorSelect
+          colors={CELL_BG_COLORS}
+          currentValue=""
+          onSelect={v => editor.chain().focus().setCellAttribute('backgroundColor', v).run()}
+          pickerTitle="Fond personnalisé"
+        />
+        <span style={{ borderLeft: '1px solid #d1d5db', margin: '0 2px' }} />
+        {/* Épaisseur bordure */}
+        {[0,1,2,3].map(w => btn(() => editor.chain().focus().setCellAttribute('borderWidth', w).run(), `${w}px`, false))}
+        {/* Couleur bordure */}
+        <ColorSelect
+          colors={CELL_BORDER_COLORS}
+          currentValue=""
+          onSelect={v => editor.chain().focus().setCellAttribute('borderColor', v).run()}
+          pickerTitle="Couleur trait personnalisée"
+        />
+      </>}
       <span style={{ borderLeft: '1px solid #d1d5db', margin: '0 2px' }} />
       {btn(() => editor.chain().focus().undo().run(), '↩', false)}
       {btn(() => editor.chain().focus().redo().run(), '↪', false)}
     </div>
+    </>
   );
 }
 
@@ -75,6 +391,7 @@ export default function PageEditor() {
   useEffect(() => { activeLangRef.current = activeLang; }, [activeLang]);
   const [saving, setSaving]         = useState(false);
   const [msg, setMsg]               = useState(null);
+  const [imagePickerCb, setImagePickerCb] = useState(null);
 
   // Données page
   const [slug, setSlug]           = useState('');
@@ -94,9 +411,16 @@ export default function PageEditor() {
     extensions: [
       StarterKit,
       Underline,
-      Image,
+      Image.extend({ addAttributes() { return { ...this.parent?.(), width: { default: null, parseHTML: el => el.getAttribute('width'), renderHTML: attrs => attrs.width ? { width: attrs.width, style: `width:${attrs.width}` } : {} } }; } }),
       Link.configure({ openOnClick: false }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeaderExt,
+      TableCellExt,
+      TextStyle,
+      Color.configure({ types: ['textStyle'] }),
+      FontFamily.configure({ types: ['textStyle'] }),
     ],
     content: translations[activeLang]?.content || '',
     onUpdate: ({ editor: e }) => {
@@ -112,9 +436,16 @@ export default function PageEditor() {
     extensions: [
       StarterKit,
       Underline,
-      Image,
+      Image.extend({ addAttributes() { return { ...this.parent?.(), width: { default: null, parseHTML: el => el.getAttribute('width'), renderHTML: attrs => attrs.width ? { width: attrs.width, style: `width:${attrs.width}` } : {} } }; } }),
       Link.configure({ openOnClick: false }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeaderExt,
+      TableCellExt,
+      TextStyle,
+      Color.configure({ types: ['textStyle'] }),
+      FontFamily.configure({ types: ['textStyle'] }),
     ],
     content: translations[activeLang]?.content_after || '',
     onUpdate: ({ editor: e }) => {
@@ -124,6 +455,24 @@ export default function PageEditor() {
         [lang]: { ...prev[lang], content_after: e.getHTML() },
       }));
     },
+  });
+
+  // État réactif des toolbars — calculé ici (même composant que useEditor) et passé en props
+  const toolbarState = useEditorState({
+    editor,
+    selector: ({ editor: e }) => ({
+      isInTable:  e?.isActive('table') ?? false,
+      isImage:    e?.state?.selection.node?.type.name === 'image',
+      fontFamily: e?.getAttributes('textStyle')?.fontFamily ?? '',
+    }),
+  });
+  const toolbarAfterState = useEditorState({
+    editor: editorAfter,
+    selector: ({ editor: e }) => ({
+      isInTable:  e?.isActive('table') ?? false,
+      isImage:    e?.state?.selection.node?.type.name === 'image',
+      fontFamily: e?.getAttributes('textStyle')?.fontFamily ?? '',
+    }),
   });
 
   // Charger la page existante
@@ -339,8 +688,8 @@ export default function PageEditor() {
 
         <label style={{ display: 'block', fontWeight: 500, fontSize: 14, marginBottom: 4 }}>Contenu (avant formulaire)</label>
         <div style={{ border: '1px solid #d1d5db', borderRadius: 6, marginBottom: 12 }}>
-          <Toolbar editor={editor} />
-          <EditorContent editor={editor} style={{ minHeight: 250, padding: '12px', outline: 'none' }} />
+          <Toolbar editor={editor} isInTable={toolbarState?.isInTable ?? false} isImage={toolbarState?.isImage ?? false} fontFamily={toolbarState?.fontFamily ?? ''} onOpenImagePicker={cb => setImagePickerCb(() => cb)} sticky />
+          <EditorContent editor={editor} style={{ minHeight: 250, padding: '12px', outline: 'none' }} className="tiptap-editor" />
         </div>
 
         <label style={{ display: 'block', fontWeight: 500, fontSize: 14, marginBottom: 4 }}>
@@ -350,8 +699,8 @@ export default function PageEditor() {
           </span>
         </label>
         <div style={{ border: '1px solid #d1d5db', borderRadius: 6, marginBottom: 12 }}>
-          <Toolbar editor={editorAfter} />
-          <EditorContent editor={editorAfter} style={{ minHeight: 120, padding: '12px', outline: 'none' }} />
+          <Toolbar editor={editorAfter} isInTable={toolbarAfterState?.isInTable ?? false} isImage={toolbarAfterState?.isImage ?? false} fontFamily={toolbarAfterState?.fontFamily ?? ''} onOpenImagePicker={cb => setImagePickerCb(() => cb)} />
+          <EditorContent editor={editorAfter} style={{ minHeight: 120, padding: '12px', outline: 'none' }} className="tiptap-editor" />
         </div>
 
         <label style={{ display: 'block', fontWeight: 500, fontSize: 14, marginBottom: 4 }}>Titre SEO</label>
@@ -394,7 +743,18 @@ export default function PageEditor() {
         .tiptap a  { color: #2563eb; text-decoration: underline; }
         .tiptap img { max-width: 100%; height: auto; border-radius: 6px; }
         .tiptap blockquote { border-left: 4px solid #e5e7eb; padding-left: 1em; margin: .8em 0; color: #6b7280; }
+        .tiptap table { border-collapse: collapse; width: 100%; margin: .8em 0; }
+        .tiptap table th { background: #f3f4f6; font-weight: 600; text-align: left; padding: 6px 10px; border: 1px solid #d1d5db; box-shadow: inset 0 0 0 1px #e2e8f0; position: relative; }
+        .tiptap table td { padding: 6px 10px; border: 1px solid #d1d5db; box-shadow: inset 0 0 0 1px #e2e8f0; position: relative; }
+        .tiptap table tr:nth-child(even) td { background: #f9fafb; }
+        .tiptap .selectedCell:after { background: rgba(37,99,235,.12); content: ''; position: absolute; inset: 0; pointer-events: none; }
+        .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: #93c5fd; pointer-events: none; }
+        .resize-cursor { cursor: col-resize; }
+        .tableWrapper { overflow-x: auto; }
       `}</style>
+      {imagePickerCb && (
+        <MediaPickerModal onPick={imagePickerCb} onClose={() => setImagePickerCb(null)} />
+      )}
     </div>
   );
 }

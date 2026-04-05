@@ -702,16 +702,37 @@ function RetentionSection() {
   );
 }
 
-const LIMITER_LABELS = { global: 'Global', auth: 'Auth', poll: 'Polling', portal_login: 'Portail login', contact: 'Contact' };
+const LIMITER_LABELS = { global: 'Global', admin: 'Admin', auth: 'Auth', poll: 'Polling', portal_login: 'Portail login', contact: 'Contact', app: 'Apps mobiles' };
+const BADGE_COLORS = {
+  auth:         { bg: '#fee2e2', color: '#b91c1c', border: '#fca5a5' },
+  poll:         { bg: '#fef9c3', color: '#92400e', border: '#fde68a' },
+  admin:        { bg: '#ffedd5', color: '#c2410c', border: '#fdba74' },
+  global:       { bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' },
+  portal_login: { bg: '#ede9fe', color: '#6d28d9', border: '#c4b5fd' },
+  contact:      { bg: '#dcfce7', color: '#15803d', border: '#86efac' },
+  app:          { bg: '#e0f2fe', color: '#0369a1', border: '#7dd3fc' },
+};
+
+function LimiterBadge({ name }) {
+  const bc = BADGE_COLORS[name] || { bg: '#ede9fe', color: '#6d28d9', border: '#c4b5fd' };
+  return (
+    <span style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: bc.bg, color: bc.color, border: `1px solid ${bc.border}` }}>
+      {LIMITER_LABELS[name] || name}
+    </span>
+  );
+}
 
 function RateLimitSection() {
-  const EMPTY = { global_max: 500, global_window_ms: 900000, auth_max: 20, poll_max: 2000, contact_max: 5, contact_window_ms: 3600000, portal_login_max: 10, portal_login_window_ms: 900000, ip_whitelist: '' };
+  const EMPTY = { global_max: 500, global_window_ms: 900000, admin_max: 300, admin_window_ms: 900000, auth_max: 20, auth_window_ms: 900000, poll_max: 2000, poll_window_ms: 900000, contact_max: 5, contact_window_ms: 3600000, portal_login_max: 10, portal_login_window_ms: 900000, app_max: 1000, app_window_ms: 900000, ip_whitelist: '' };
   const [form, setForm] = useState(EMPTY);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [err, setErr]  = useState('');
   const [msg, setMsg]  = useState('');
   const [logs, setLogs] = useState([]);
-  const [logsErr, setLogsErr] = useState('');
+  const [stats, setStats] = useState([]);
+  const [ipRows, setIpRows] = useState([]);
+  const [activeTab, setActiveTab] = useState('blocages');
+  const [resetMsg, setResetMsg] = useState('');
 
   async function load() {
     setErr('');
@@ -720,12 +741,18 @@ function RateLimitSection() {
       setForm({
         global_max:             data.global_max             ?? 500,
         global_window_ms:       data.global_window_ms       ?? 900000,
+        admin_max:              data.admin_max              ?? 300,
+        admin_window_ms:        data.admin_window_ms        ?? 900000,
         auth_max:               data.auth_max               ?? 20,
+        auth_window_ms:         data.auth_window_ms         ?? 900000,
         poll_max:               data.poll_max               ?? 2000,
+        poll_window_ms:         data.poll_window_ms         ?? 900000,
         contact_max:            data.contact_max            ?? 5,
         contact_window_ms:      data.contact_window_ms      ?? 3600000,
         portal_login_max:       data.portal_login_max       ?? 10,
         portal_login_window_ms: data.portal_login_window_ms ?? 900000,
+        app_max:                data.app_max                ?? 1000,
+        app_window_ms:          data.app_window_ms          ?? 900000,
         ip_whitelist:           data.ip_whitelist           ?? '',
       });
       setUpdatedAt(data.updated_at);
@@ -734,17 +761,40 @@ function RateLimitSection() {
     }
   }
 
+  async function loadStats() {
+    try {
+      const data = await apiFetch('/admin/rate-limit/stats');
+      setStats(data || []);
+    } catch { /* silencieux */ }
+  }
+
   async function loadLogs() {
-    setLogsErr('');
     try {
       const data = await apiFetch('/admin/rate-limit/logs');
       setLogs(data || []);
-    } catch (e) {
-      setLogsErr(e?.data?.error || e.message);
-    }
+    } catch { /* silencieux */ }
   }
 
-  useEffect(() => { load(); loadLogs(); }, []);
+  function isPrivateIp(ip) {
+    return /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1$|fc|fd)/.test(ip);
+  }
+
+  async function loadIps() {
+    try {
+      const data = await apiFetch('/admin/rate-limit/ips');
+      setIpRows((data || []).filter(r => !isPrivateIp(r.ip)));
+    } catch { /* silencieux */ }
+  }
+
+  async function refreshAll() {
+    await Promise.all([loadStats(), loadLogs(), loadIps()]);
+  }
+
+  useEffect(() => {
+    load(); refreshAll();
+    const id = setInterval(refreshAll, 10000);
+    return () => clearInterval(id);
+  }, []);
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -757,208 +807,260 @@ function RateLimitSection() {
         body: {
           global_max:             Number(form.global_max),
           global_window_ms:       Number(form.global_window_ms),
+          admin_max:              Number(form.admin_max),
+          admin_window_ms:        Number(form.admin_window_ms),
           auth_max:               Number(form.auth_max),
+          auth_window_ms:         Number(form.auth_window_ms),
           poll_max:               Number(form.poll_max),
+          poll_window_ms:         Number(form.poll_window_ms),
           contact_max:            Number(form.contact_max),
           contact_window_ms:      Number(form.contact_window_ms),
           portal_login_max:       Number(form.portal_login_max),
           portal_login_window_ms: Number(form.portal_login_window_ms),
+          app_max:                Number(form.app_max),
+          app_window_ms:          Number(form.app_window_ms),
           ip_whitelist:           form.ip_whitelist,
         },
       });
-      setMsg('Configuration rate limit enregistrée et appliquée immédiatement.');
+      setMsg('Configuration enregistrée et appliquée immédiatement.');
       await load();
+      await refreshAll();
     } catch (e) {
       setErr(e?.data?.error || e.message);
     }
   }
 
-  const windowMin = Math.round(form.global_window_ms / 60000);
+  async function resetIp(ip, limiter) {
+    try {
+      await apiFetch('/admin/rate-limit/ips/reset', { method: 'POST', body: { ip, limiter } });
+      setResetMsg(`Compteur réinitialisé pour ${ip} (${LIMITER_LABELS[limiter] || limiter})`);
+      setTimeout(() => setResetMsg(''), 3000);
+      await loadIps();
+    } catch (e) {
+      setResetMsg('Erreur : ' + (e?.data?.error || e.message));
+    }
+  }
+
+  const hasBlocked = logs.length > 0;
+  function getStat(name) { return stats.find(s => s.name === name) || { count: 0, blocked: 0, windowResetIn: 0 }; }
+
+  const ROWS = [
+    { label: 'Global',        desc: 'Toutes les routes (par IP)',                          maxKey: 'global_max',        windowKey: 'global_window_ms',        statKey: 'global' },
+    { label: 'Admin',         desc: 'Back-office (/admin/*)',                              maxKey: 'admin_max',         windowKey: 'admin_window_ms',         statKey: 'admin' },
+    { label: 'Apps mobiles',  desc: 'iOS / Android (/devices, /esp-devices, /me…)',       maxKey: 'app_max',           windowKey: 'app_window_ms',           statKey: 'app' },
+    { label: 'Auth',          desc: '/auth/* (signup, login, reset…)',                     maxKey: 'auth_max',          windowKey: 'auth_window_ms',          statKey: 'auth' },
+    { label: 'Portail login', desc: 'Login portail client (/auth/login)',                  maxKey: 'portal_login_max',  windowKey: 'portal_login_window_ms',  statKey: 'portal_login' },
+    { label: 'Polling',       desc: 'Status bar (status, apns, fcm, smtp)',                maxKey: 'poll_max',          windowKey: 'poll_window_ms',          statKey: 'poll' },
+    { label: 'Contact',       desc: 'Formulaire de contact public (/public/contact)',      maxKey: 'contact_max',       windowKey: 'contact_window_ms',       statKey: 'contact' },
+  ];
+
+  const inputStyle = { width: 72, textAlign: 'center', padding: '4px 6px', fontSize: 13 };
+  const tabStyle = (t) => ({
+    padding: '7px 16px',
+    fontSize: 13,
+    fontWeight: activeTab === t ? 600 : 400,
+    color: activeTab === t ? '#1d4ed8' : '#6b7280',
+    background: 'none',
+    border: 'none',
+    borderBottom: activeTab === t ? '2px solid #1d4ed8' : '2px solid transparent',
+    cursor: 'pointer',
+    marginBottom: -1,
+  });
+
+  const blockedCount = ipRows.filter(r => r.blocked).length;
+  const activeCount  = ipRows.filter(r => r.count > 0).length;
 
   return (
-    <div className="card" style={{ maxWidth: 520 }}>
-      <h3 style={{ marginTop: 0 }}>Rate limits</h3>
-      <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
-        Les modifications sont appliquées immédiatement sans redémarrage.
-        Les compteurs en cours sont réinitialisés à l'application.
-      </p>
+    <div className="card" style={{ maxWidth: 700 }}>
+      {/* En-tête */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <h3 style={{ margin: 0 }}>Rate limits</h3>
+        <span
+          title={hasBlocked ? `${logs.length} connexion(s) bloquée(s) dans la fenêtre courante` : 'Aucune IP bloquée'}
+          style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', background: hasBlocked ? '#dc2626' : '#16a34a', flexShrink: 0, boxShadow: `0 0 0 3px ${hasBlocked ? '#fee2e2' : '#dcfce7'}` }}
+        />
+      </div>
 
-      {err ? <div style={{ color: '#b91c1c', marginBottom: 12 }}>{err}</div> : null}
-      {msg ? <div style={{ color: '#15803d', marginBottom: 12 }}>{msg}</div> : null}
+      {/* Onglets */}
+      <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', marginBottom: 20 }}>
+        <button style={tabStyle('blocages')} onClick={() => setActiveTab('blocages')}>Blocages actifs</button>
+        <button style={tabStyle('whitelist')} onClick={() => setActiveTab('whitelist')}>Whitelist IP</button>
+        <button style={tabStyle('config')} onClick={() => setActiveTab('config')}>Configuration</button>
+      </div>
 
-      <form onSubmit={save}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left', fontSize: 12, color: '#6b7280', padding: '4px 0 8px', fontWeight: 600 }}>Limiteur</th>
-              <th style={{ textAlign: 'left', fontSize: 12, color: '#6b7280', padding: '4px 0 8px', fontWeight: 600 }}>Description</th>
-              <th style={{ textAlign: 'right', fontSize: 12, color: '#6b7280', padding: '4px 0 8px', fontWeight: 600, width: 100 }}>Requêtes max</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              { key: 'global_max',        label: 'Global',         desc: 'Toutes les routes (par IP)' },
-              { key: 'auth_max',          label: 'Auth',           desc: '/auth/* et /admin/login' },
-              { key: 'portal_login_max',  label: 'Portail login',  desc: 'Login portail client (/auth/login)' },
-              { key: 'poll_max',          label: 'Polling',        desc: 'Status bar (status, apns, fcm, smtp)' },
-              { key: 'contact_max',       label: 'Contact',        desc: 'Formulaire de contact public (/public/contact)' },
-            ].map(({ key, label, desc }) => (
-              <tr key={key} style={{ borderTop: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '10px 0', fontSize: 13, fontWeight: 500, width: 80 }}>{label}</td>
-                <td style={{ padding: '10px 0', fontSize: 12, color: '#6b7280' }}>{desc}</td>
-                <td style={{ padding: '10px 0', textAlign: 'right' }}>
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    style={{ width: 90, textAlign: 'center', padding: '4px 6px', fontSize: 13 }}
-                    value={form[key]}
-                    onChange={e => set(key, e.target.value)}
-                  />
-                </td>
-              </tr>
-            ))}
-            <tr style={{ borderTop: '1px solid #f3f4f6' }}>
-              <td style={{ padding: '10px 0', fontSize: 13, fontWeight: 500 }}>Fenêtre contact</td>
-              <td style={{ padding: '10px 0', fontSize: 12, color: '#6b7280' }}>Durée de la fenêtre du formulaire de contact (indépendante)</td>
-              <td style={{ padding: '10px 0', textAlign: 'right' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    style={{ width: 70, textAlign: 'center', padding: '4px 6px', fontSize: 13 }}
-                    value={Math.round(form.contact_window_ms / 60000)}
-                    onChange={e => set('contact_window_ms', Number(e.target.value) * 60000)}
-                  />
-                  <span style={{ fontSize: 12, color: '#6b7280' }}>min</span>
-                </div>
-              </td>
-            </tr>
-            <tr style={{ borderTop: '1px solid #f3f4f6' }}>
-              <td style={{ padding: '10px 0', fontSize: 13, fontWeight: 500 }}>Fenêtre portail login</td>
-              <td style={{ padding: '10px 0', fontSize: 12, color: '#6b7280' }}>Durée de la fenêtre du login portail client (indépendante)</td>
-              <td style={{ padding: '10px 0', textAlign: 'right' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    style={{ width: 70, textAlign: 'center', padding: '4px 6px', fontSize: 13 }}
-                    value={Math.round(form.portal_login_window_ms / 60000)}
-                    onChange={e => set('portal_login_window_ms', Number(e.target.value) * 60000)}
-                  />
-                  <span style={{ fontSize: 12, color: '#6b7280' }}>min</span>
-                </div>
-              </td>
-            </tr>
-            <tr style={{ borderTop: '1px solid #f3f4f6' }}>
-              <td style={{ padding: '10px 0', fontSize: 13, fontWeight: 500 }}>Fenêtre globale</td>
-              <td style={{ padding: '10px 0', fontSize: 12, color: '#6b7280' }}>Durée de la fenêtre (s'applique à Global, Auth, Polling)</td>
-              <td style={{ padding: '10px 0', textAlign: 'right' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    style={{ width: 70, textAlign: 'center', padding: '4px 6px', fontSize: 13 }}
-                    value={windowMin}
-                    onChange={e => set('global_window_ms', Number(e.target.value) * 60000)}
-                  />
-                  <span style={{ fontSize: 12, color: '#6b7280' }}>min</span>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', marginBottom: 4, fontSize: 13, fontWeight: 500 }}>
-            Liste blanche IP (non soumises au rate limit)
-          </label>
-          <p style={{ margin: '0 0 6px', fontSize: 12, color: '#6b7280' }}>
-            Une IP par ligne ou séparées par des virgules. Ces IPs contournent tous les limiteurs.
-          </p>
-          <textarea
-            className="input"
-            rows={4}
-            placeholder={'192.168.1.1\n10.0.0.0'}
-            style={{ fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
-            value={(form.ip_whitelist || '').replace(/,/g, '\n')}
-            onChange={e => set('ip_whitelist', e.target.value.replace(/\n/g, ','))}
-          />
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button className="btn" type="submit">Appliquer</button>
-          {updatedAt && (
-            <span style={{ fontSize: 11, color: '#9ca3af' }}>
-              Dernière modif : {new Date(updatedAt).toLocaleString('fr-FR')}
+      {/* ── Onglet : Blocages actifs ─────────────────────────── */}
+      {activeTab === 'blocages' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <span style={{ fontSize: 12, color: '#6b7280' }}>
+              Données en mémoire vive — réinitialisées au redémarrage du container.
             </span>
-          )}
-        </div>
-      </form>
-
-      {/* Dernières connexions bloquées */}
-      <div style={{ marginTop: 28, paddingTop: 20, borderTop: '2px solid #e5e7eb' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
-            Connexions bloquées — fenêtre de {windowMin} min
-          </h4>
-          <button
-            className="btn secondary"
-            style={{ padding: '4px 12px', fontSize: 12 }}
-            onClick={loadLogs}
-          >
-            Actualiser
-          </button>
-        </div>
-
-        {logsErr && <div style={{ color: '#b91c1c', fontSize: 12, marginBottom: 8 }}>{logsErr}</div>}
-
-        {logs.length === 0 ? (
-          <div style={{ fontSize: 13, color: '#9ca3af', padding: '10px 0' }}>
-            Aucune connexion bloquée dans la fenêtre de temps courante.
+            <button className="btn secondary" style={{ padding: '4px 12px', fontSize: 12 }} onClick={refreshAll}>
+              Actualiser
+            </button>
           </div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+
+          {resetMsg && (
+            <div style={{ padding: '6px 10px', marginBottom: 10, borderRadius: 6, background: '#f0fdf4', color: '#15803d', fontSize: 12, border: '1px solid #86efac' }}>
+              {resetMsg}
+            </div>
+          )}
+
+          {ipRows.length === 0 ? (
+            <div style={{ fontSize: 13, color: '#9ca3af', padding: '12px 0' }}>
+              Aucune IP suivie en mémoire pour le moment.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: '#f9fafb' }}>
+                    <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>ADRESSE IP</th>
+                    <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>TYPE DE LIMITEUR</th>
+                    <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>REQUÊTES / SEUIL</th>
+                    <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>RÉINIT. DANS</th>
+                    <th style={{ textAlign: 'center', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>STATUT</th>
+                    <th style={{ padding: '6px 10px', borderBottom: '2px solid #e5e7eb' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ipRows.map((row) => (
+                    <tr key={row.key} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: row.blocked ? '#dc2626' : '#374151' }}>
+                        {row.ip}
+                      </td>
+                      <td style={{ padding: '8px 10px' }}>
+                        <LimiterBadge name={row.limiter} />
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12 }}>
+                        <span style={{ fontWeight: 600, color: row.count >= row.max ? '#dc2626' : '#374151' }}>
+                          {row.count}
+                        </span>
+                        <span style={{ color: '#9ca3af' }}> / {row.max}</span>
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: '#6b7280' }}>
+                        {row.windowResetIn > 0 ? `${Math.ceil(row.windowResetIn / 60)}min` : '—'}
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                        {row.blocked
+                          ? <span style={{ fontSize: 12, fontWeight: 600, color: '#dc2626' }}>🚫 Bloqué</span>
+                          : <span style={{ fontSize: 12, fontWeight: 600, color: '#16a34a' }}>✓ Actif</span>
+                        }
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                        <button
+                          className="btn secondary"
+                          style={{ padding: '3px 10px', fontSize: 11 }}
+                          onClick={() => resetIp(row.ip, row.limiter)}
+                        >
+                          Remettre à zéro
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div style={{ marginTop: 12, fontSize: 12, color: '#9ca3af' }}>
+            {blockedCount} bloqué{blockedCount !== 1 ? 's' : ''} • {activeCount} compteur{activeCount !== 1 ? 's' : ''} actif{activeCount !== 1 ? 's' : ''} en mémoire
+          </div>
+        </div>
+      )}
+
+      {/* ── Onglet : Whitelist IP ─────────────────────────────── */}
+      {activeTab === 'whitelist' && (
+        <div>
+          {err ? <div style={{ color: '#b91c1c', marginBottom: 12 }}>{err}</div> : null}
+          {msg ? <div style={{ color: '#15803d', marginBottom: 12 }}>{msg}</div> : null}
+          <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
+            Ces IPs contournent tous les limiteurs. Une IP par ligne ou séparées par des virgules.
+          </p>
+          <form onSubmit={save}>
+            <textarea
+              className="input"
+              rows={6}
+              placeholder={'192.168.1.1\n10.0.0.0'}
+              style={{ fontFamily: 'monospace', fontSize: 12, resize: 'vertical', marginBottom: 12 }}
+              value={(form.ip_whitelist || '').replace(/,/g, '\n')}
+              onChange={e => set('ip_whitelist', e.target.value.replace(/\n/g, ','))}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button className="btn" type="submit">Enregistrer</button>
+              {updatedAt && (
+                <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                  Dernière modif : {new Date(updatedAt).toLocaleString('fr-FR')}
+                </span>
+              )}
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ── Onglet : Configuration ────────────────────────────── */}
+      {activeTab === 'config' && (
+        <div>
+          {err ? <div style={{ color: '#b91c1c', marginBottom: 12 }}>{err}</div> : null}
+          {msg ? <div style={{ color: '#15803d', marginBottom: 12 }}>{msg}</div> : null}
+          <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
+            Les modifications sont appliquées immédiatement sans redémarrage. Les compteurs en cours sont réinitialisés à l'application.
+          </p>
+          <form onSubmit={save}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
               <thead>
-                <tr style={{ background: '#f9fafb' }}>
-                  <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Date</th>
-                  <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Heure</th>
-                  <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Limiteur</th>
-                  <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>IP</th>
-                  <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, fontSize: 12, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Route</th>
+                <tr>
+                  <th style={{ textAlign: 'left', fontSize: 12, color: '#6b7280', padding: '4px 0 8px', fontWeight: 600 }}>Limiteur</th>
+                  <th style={{ textAlign: 'left', fontSize: 12, color: '#6b7280', padding: '4px 0 8px', fontWeight: 600 }}>Description</th>
+                  <th style={{ textAlign: 'right', fontSize: 12, color: '#6b7280', padding: '4px 0 8px', fontWeight: 600 }}>Req. max</th>
+                  <th style={{ textAlign: 'right', fontSize: 12, color: '#6b7280', padding: '4px 0 8px 12px', fontWeight: 600 }}>Durée (min)</th>
+                  <th style={{ textAlign: 'right', fontSize: 12, color: '#6b7280', padding: '4px 0 8px 0 12px', fontWeight: 600 }}>Utilisation</th>
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log, i) => {
-                  const d = new Date(log.ts);
+                {ROWS.map(({ label, desc, maxKey, windowKey, statKey }) => {
+                  const st  = getStat(statKey);
+                  const max = Number(form[maxKey]) || 1;
+                  const pct = Math.min(100, Math.round((st.count / max) * 100));
+                  const barColor = pct >= 90 ? '#dc2626' : pct >= 70 ? '#f59e0b' : '#16a34a';
                   return (
-                    <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '7px 10px', color: '#374151' }}>{d.toLocaleDateString('fr-FR')}</td>
-                      <td style={{ padding: '7px 10px', color: '#374151', fontFamily: 'monospace' }}>{d.toLocaleTimeString('fr-FR')}</td>
-                      <td style={{ padding: '7px 10px' }}>
-                        <span style={{
-                          display: 'inline-block', padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600,
-                          background: log.limiter === 'auth' ? '#fee2e2' : log.limiter === 'poll' ? '#fef9c3' : '#ede9fe',
-                          color:      log.limiter === 'auth' ? '#b91c1c' : log.limiter === 'poll' ? '#92400e' : '#6d28d9',
-                          border:     `1px solid ${log.limiter === 'auth' ? '#fca5a5' : log.limiter === 'poll' ? '#fde68a' : '#c4b5fd'}`,
-                        }}>
-                          {LIMITER_LABELS[log.limiter] || log.limiter}
-                        </span>
+                    <tr key={maxKey} style={{ borderTop: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '8px 0', fontSize: 13, fontWeight: 500, width: 90 }}>{label}</td>
+                      <td style={{ padding: '8px 0', fontSize: 12, color: '#6b7280' }}>{desc}</td>
+                      <td style={{ padding: '8px 0', textAlign: 'right' }}>
+                        <input className="input" type="number" min={1} style={inputStyle} value={form[maxKey]} onChange={e => set(maxKey, e.target.value)} />
                       </td>
-                      <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 12, color: '#374151' }}>{log.ip}</td>
-                      <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 12, color: '#6b7280' }}>{log.path || '—'}</td>
+                      <td style={{ padding: '8px 0 8px 12px', textAlign: 'right' }}>
+                        <input className="input" type="number" min={1} style={inputStyle} value={Math.round(form[windowKey] / 60000)} onChange={e => set(windowKey, Number(e.target.value) * 60000)} />
+                      </td>
+                      <td style={{ padding: '8px 0 8px 12px', textAlign: 'right', minWidth: 110 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: barColor }}>
+                            {st.count} / {max}
+                            {st.blocked > 0 && <span style={{ marginLeft: 5, color: '#dc2626' }}>🚫 {st.blocked}</span>}
+                          </span>
+                          <div style={{ width: 80, height: 4, background: '#e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 2, transition: 'width .4s' }} />
+                          </div>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          </div>
-        )}
-      </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button className="btn" type="submit">Appliquer</button>
+              {updatedAt && (
+                <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                  Dernière modif : {new Date(updatedAt).toLocaleString('fr-FR')}
+                </span>
+              )}
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
@@ -1218,7 +1320,7 @@ const EDITABLE_KEYS = [
   { key: 'password_require_digit', label: 'Exiger un chiffre',             type: 'select', options: ['true', 'false'] },
 ];
 
-const MEDIA_BASE = 'https://apixam.holiceo.com';
+const MEDIA_BASE = import.meta.env.VITE_API_BASE || 'https://apixam.holiceo.com';
 
 function MediaPickerModal({ onSelect, onClose }) {
   const [media, setMedia]     = useState([]);
@@ -1736,9 +1838,11 @@ function StripeSection() {
   const [msg, setMsg]               = useState(null);
   // Clés test
   const [testSK, setTestSK]           = useState('');
+  const [testPK, setTestPK]           = useState('');
   const [testWH, setTestWH]           = useState('');
   // Clés live
   const [liveSK, setLiveSK]           = useState('');
+  const [livePK, setLivePK]           = useState('');
   const [liveWH, setLiveWH]           = useState('');
 
   useEffect(() => { load(); }, []);
@@ -1757,19 +1861,21 @@ function StripeSection() {
 
   async function saveMode(mode) {
     const sk  = mode === 'test' ? testSK  : liveSK;
+    const pk  = mode === 'test' ? testPK  : livePK;
     const wh  = mode === 'test' ? testWH  : liveWH;
-    if (!sk.trim() && !wh.trim()) {
+    if (!sk.trim() && !pk.trim() && !wh.trim()) {
       setMsg({ type: 'error', text: 'Renseignez au moins une clé à mettre à jour.' });
       return;
     }
     setSaving(true); setMsg(null);
     try {
       const body = {};
-      if (sk.trim()) body[`${mode}_secret_key`]     = sk.trim();
-      if (wh.trim()) body[`${mode}_webhook_secret`] = wh.trim();
+      if (sk.trim()) body[`${mode}_secret_key`]      = sk.trim();
+      if (pk.trim()) body[`${mode}_publishable_key`] = pk.trim();
+      if (wh.trim()) body[`${mode}_webhook_secret`]  = wh.trim();
       await apiFetch('/admin/stripe', { method: 'PUT', body });
-      if (mode === 'test') { setTestSK(''); setTestWH(''); }
-      else                 { setLiveSK(''); setLiveWH(''); }
+      if (mode === 'test') { setTestSK(''); setTestPK(''); setTestWH(''); }
+      else                 { setLiveSK(''); setLivePK(''); setLiveWH(''); }
       await load();
       setMsg({ type: 'success', text: `Clés ${mode === 'test' ? 'Test' : 'Production'} enregistrées.` });
     } catch (e) {
@@ -1795,12 +1901,13 @@ function StripeSection() {
   const activeMode = status?.active_mode || 'test';
   const isLiveActive = activeMode === 'live';
 
-  function ModeCard({ mode, label, info, sk, setSk, wh, setWh }) {
+  function ModeCard({ mode, label, info, sk, setSk, pk, setPk, wh, setWh }) {
     const isActive = activeMode === mode;
     const borderColor = isActive ? (mode === 'live' ? '#86efac' : '#fde68a') : '#e5e7eb';
     const headerBg    = isActive ? (mode === 'live' ? '#dcfce7' : '#fef9c3') : '#f9fafb';
     const headerColor = isActive ? (mode === 'live' ? '#15803d' : '#92400e') : '#6b7280';
     const prefix = mode === 'test' ? 'sk_test_…' : 'sk_live_…';
+    const pkPrefix = mode === 'test' ? 'pk_test_…' : 'pk_live_…';
 
     return (
       <div style={{
@@ -1846,9 +1953,15 @@ function StripeSection() {
         <div style={{ padding: '12px 16px', fontSize: 13 }}>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
             <div>
-              <span style={{ color: '#6b7280' }}>Clé : </span>
+              <span style={{ color: '#6b7280' }}>Clé secrète : </span>
               {info?.configured
                 ? <code style={{ fontSize: 12, color: '#374151' }}>{info.key_hint}</code>
+                : <span style={{ color: '#9ca3af' }}>Non renseignée</span>}
+            </div>
+            <div>
+              <span style={{ color: '#6b7280' }}>Clé publique : </span>
+              {info?.publishable_configured
+                ? <code style={{ fontSize: 12, color: '#374151' }}>{info.publishable_hint}</code>
                 : <span style={{ color: '#9ca3af' }}>Non renseignée</span>}
             </div>
             <div>
@@ -1880,6 +1993,23 @@ function StripeSection() {
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>
+                Clé publique <span style={{ color: '#9ca3af' }}>({pkPrefix})</span>
+              </label>
+              <input
+                type="text"
+                value={pk}
+                onChange={e => setPk(e.target.value)}
+                placeholder={info?.publishable_configured ? '••• laisser vide pour conserver •••' : pkPrefix}
+                autoComplete="off"
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6,
+                  fontSize: 13, background: '#fff',
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 3 }}>
                 Webhook secret <span style={{ color: '#9ca3af' }}>(whsec_…)</span>
               </label>
               <input
@@ -1899,13 +2029,13 @@ function StripeSection() {
               <button
                 type="button"
                 onClick={() => saveMode(mode)}
-                disabled={saving || (!sk.trim() && !wh.trim())}
+                disabled={saving || (!sk.trim() && !pk.trim() && !wh.trim())}
                 style={{
                   padding: '6px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600,
-                  background: saving || (!sk.trim() && !wh.trim()) ? '#e5e7eb' : '#2563eb',
-                  color: saving || (!sk.trim() && !wh.trim()) ? '#9ca3af' : '#fff',
+                  background: saving || (!sk.trim() && !pk.trim() && !wh.trim()) ? '#e5e7eb' : '#2563eb',
+                  color: saving || (!sk.trim() && !pk.trim() && !wh.trim()) ? '#9ca3af' : '#fff',
                   border: 'none',
-                  cursor: saving || (!sk.trim() && !wh.trim()) ? 'default' : 'pointer',
+                  cursor: saving || (!sk.trim() && !pk.trim() && !wh.trim()) ? 'default' : 'pointer',
                 }}
               >
                 {saving ? 'Enregistrement…' : 'Enregistrer'}
@@ -1941,11 +2071,11 @@ function StripeSection() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <ModeCard
             mode="test" label="Mode Test (sandbox)" info={status.test}
-            sk={testSK} setSk={setTestSK} wh={testWH} setWh={setTestWH}
+            sk={testSK} setSk={setTestSK} pk={testPK} setPk={setTestPK} wh={testWH} setWh={setTestWH}
           />
           <ModeCard
             mode="live" label="Mode Production (live)" info={status.live}
-            sk={liveSK} setSk={setLiveSK} wh={liveWH} setWh={setLiveWH}
+            sk={liveSK} setSk={setLiveSK} pk={livePK} setPk={setLivePK} wh={liveWH} setWh={setLiveWH}
           />
         </div>
       )}

@@ -1,0 +1,29 @@
+services:
+  xamiot-api:
+    build: .
+    container_name: xamiot-api
+    restart: unless-stopped
+    env_file: .env.prod
+    networks: [proxy, backend, xamiot_v2_net]
+    volumes:
+      - xamiot_v2_ota_data:/data/ota
+      - xamiot_v2_media_data:/data/media
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.xamiot-api-v2.rule=Host(`api.xamiot.com`)
+      - traefik.http.routers.xamiot-api-v2.entrypoints=websecure
+      - traefik.http.routers.xamiot-api-v2.tls.certresolver=le
+      - traefik.http.services.xamiot-api-v2.loadbalancer.server.port=3000
+
+networks:
+  proxy:
+    external: true
+  backend:
+    external: true
+  xamiot_v2_net:
+    external: true
+
+volumes:
+  xamiot_v2_ota_data:
+  xamiot_v2_media_data:

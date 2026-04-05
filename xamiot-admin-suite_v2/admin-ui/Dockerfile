@@ -6,6 +6,8 @@ RUN npm ci || npm i
 COPY . .
 ARG VITE_API_BASE=https://apixam.holiceo.com
 ENV VITE_API_BASE=$VITE_API_BASE
+ARG VITE_SITE_URL=https://xamsite.holiceo.com
+ENV VITE_SITE_URL=$VITE_SITE_URL
 RUN npm run build
 
 FROM nginx:alpine

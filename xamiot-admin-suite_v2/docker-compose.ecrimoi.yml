@@ -1,0 +1,21 @@
+services:
+  xamiot-admin-ui:
+    build:
+      context: ./admin-ui
+      args:
+        VITE_API_BASE: https://api.xamiot.com
+        VITE_SITE_URL: https://xamiot.com
+    container_name: xamiot-admin-ui
+    restart: unless-stopped
+    networks: [proxy]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.xamiot-admin-v2.rule=Host(`admin.xamiot.com`)
+      - traefik.http.routers.xamiot-admin-v2.entrypoints=websecure
+      - traefik.http.routers.xamiot-admin-v2.tls.certresolver=le
+      - traefik.http.services.xamiot-admin-v2.loadbalancer.server.port=80
+
+networks:
+  proxy:
+    external: true

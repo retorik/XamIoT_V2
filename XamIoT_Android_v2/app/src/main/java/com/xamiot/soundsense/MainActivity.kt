@@ -37,6 +37,7 @@ import com.xamiot.soundsense.ui.auth.LoginActivity
 import com.xamiot.soundsense.ui.devicedetail.DeviceDetailActivity
 import com.xamiot.soundsense.ui.enroll.EnrollDeviceActivity
 import com.xamiot.soundsense.utils.ApiResult
+import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
@@ -132,6 +133,17 @@ class MainActivity : AppCompatActivity() {
         timeTickerHandler.post(timeTickerRunnable)
 
         restartAutoRefreshIfNeeded(refreshImmediately = true)
+
+        // Vider les notifications + badge au retour en foreground
+        val token = tokenManager.getToken()
+        if (!token.isNullOrEmpty()) {
+            lifecycleScope.launch {
+                try {
+                    ApiClient.apiService.resetBadge("Bearer $token")
+                } catch (_: Exception) {}
+                NotificationManagerCompat.from(this@MainActivity).cancelAll()
+            }
+        }
     }
 
     override fun onStop() {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { apiFetch } from '../api.js';
 
 function fmt(dt) {
@@ -30,6 +30,14 @@ export default function Alerts() {
   }, [espUid, userId]);
 
   useEffect(() => { load(); }, []);
+
+  // Recherche live avec debounce 400ms (skip le premier rendu)
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) { mounted.current = true; return; }
+    const t = setTimeout(load, 400);
+    return () => clearTimeout(t);
+  }, [espUid, userId]);
 
   const allChecked = rows.length > 0 && selected.size === rows.length;
 

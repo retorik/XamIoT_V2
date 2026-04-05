@@ -19,6 +19,7 @@ function isNumericOp(op) {
 }
 
 export default function Rules() {
+  const [q, setQ]         = useState('');
   const [rows, setRows]   = useState([]);
   const [err, setErr]     = useState('');
   const [editId, setEditId] = useState(null);   // id de la règle en cours d'édition
@@ -145,11 +146,30 @@ export default function Rules() {
   const availOps = opsForType(currentFieldMeta?.data_type || 'number');
   const isStrField = currentFieldMeta?.data_type === 'string';
 
+  const filteredRows = q
+    ? rows.filter(r =>
+        (r.user_email || '').toLowerCase().includes(q.toLowerCase()) ||
+        (r.esp_uid || '').toLowerCase().includes(q.toLowerCase()) ||
+        (r.field || '').toLowerCase().includes(q.toLowerCase()) ||
+        (r.device_type_name || '').toLowerCase().includes(q.toLowerCase())
+      )
+    : rows;
+
   return (
     <div className="container">
       <h2>Règles d'alerte</h2>
 
       {err ? <div style={{ color: '#b91c1c', marginBottom: 10 }}>{err}</div> : null}
+
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16 }}>
+        <input
+          className="input"
+          style={{ flex: 1 }}
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          placeholder="Recherche user, ESP, champ, type device…"
+        />
+      </div>
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <table className="table">
@@ -168,7 +188,7 @@ export default function Rules() {
             </tr>
           </thead>
           <tbody>
-            {rows.map(r => {
+            {filteredRows.map(r => {
               const isEditing = editId === r.id;
               return (
                 <React.Fragment key={r.id}>

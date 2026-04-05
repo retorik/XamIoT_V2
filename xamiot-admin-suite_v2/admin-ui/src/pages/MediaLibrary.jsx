@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../api.js';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://apixam.holiceo.com';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://apixam.holiceo.com';
 const MIME_ICONS = { 'image': '🖼', 'application/pdf': '📄', 'video': '🎬' };
 function mimeIcon(type) {
   if (type?.startsWith('image/')) return '🖼';

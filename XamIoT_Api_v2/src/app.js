@@ -15,6 +15,9 @@ import {
   deleteMyAccount,
 } from './auth.js';
 import { startWorker } from './mqttWorker.js';
+import { dispatch } from './notifDispatcher.js';
+import { checkOfflineDevices } from './sysNotifEngine.js';
+import { runScheduledNotifs } from './scheduledNotifWorker.js';
 import { adminRouter } from './adminRoutes.js';
 import { auditMiddleware, getRealIp } from './auditMiddleware.js';
 import { auditRouter } from './auditRouter.js';
@@ -22,11 +25,13 @@ import { cmsPublicRouter } from './cmsPublicRouter.js';
 import { adminProductsRouter, publicProductsRouter } from './productsRouter.js';
 import { adminTicketsRouter, portalTicketsRouter } from './ticketsRouter.js';
 import { adminOrdersRouter, publicOrdersRouter, portalOrdersRouter } from './ordersRouter.js';
+import { publicCountriesRouter, adminCountriesRouter } from './countriesRouter.js';
+import { addressesRouter } from './addressesRouter.js';
 import { config } from './config.js';
 import { reloadApnsConfig } from './apns.js';
 import { reloadFcmConfig } from './fcm.js';
 import { reloadSmtpConfig, createTransporter, buildFrom } from './smtp.js';
-import { globalLimiter, authLimiter, pollLimiter, contactLimiter, portalLoginLimiter, reloadRateLimitConfig } from './rateLimitManager.js';
+import { globalLimiter, adminLimiter, authLimiter, pollLimiter, contactLimiter, portalLoginLimiter, appLimiter, reloadRateLimitConfig } from './rateLimitManager.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -36,7 +41,8 @@ import argon2 from 'argon2';
 const app = express();
 
 // Traefik est le reverse-proxy devant l'API — on lui fait confiance pour X-Forwarded-For
-app.set('trust proxy', 1);
+// 'loopback, uniquelocal' couvre 127.x, 10.x, 172.16-31.x (Docker bridge), 192.168.x
+app.set('trust proxy', 'loopback, uniquelocal');
 
 // =============================================
 // MIDDLEWARES GLOBAUX
@@ -54,7 +60,12 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(bodyParser.json());
+// Le webhook Stripe nécessite le body RAW pour vérifier la signature.
+// bodyParser.json() NE DOIT PAS consommer le body de cette route.
+app.use((req, res, next) => {
+  if (req.originalUrl === '/public/checkout/webhook') return next();
+  bodyParser.json()(req, res, next);
+});
 
 app.use(globalLimiter);
 
@@ -162,6 +173,16 @@ app.post('/auth/signup', authLimiter, async (req, res) => {
 
   try {
     const result = await signup(emailNorm, password, fn, ln, ph);
+    // Audit — inscription
+    q(
+      `INSERT INTO audit_logs (user_id, user_email, action, resource_type, ip_address, user_agent, details)
+       VALUES ($1, $2, 'AUTH_SIGNUP', 'auth', $3, $4, $5)`,
+      [
+        result.user_id || null, emailNorm,
+        getRealIp(req), req.headers['user-agent'] || null,
+        JSON.stringify({ first_name: fn, last_name: ln }),
+      ]
+    ).catch(err => console.error('[AUDIT] signup error:', err.message));
     res.status(201).json(result);
   } catch (e) {
     if (e && e.code === '23505') return res.status(409).json({ error: 'email_exists' });
@@ -173,7 +194,16 @@ app.post('/auth/signup', authLimiter, async (req, res) => {
 app.get('/auth/activate/:token', async (req, res) => {
   const base = config.urls.activationResult;
   try {
-    await activate(req.params.token);
+    const result = await activate(req.params.token);
+    // Audit — vérification email
+    q(
+      `INSERT INTO audit_logs (user_id, user_email, action, resource_type, ip_address, user_agent)
+       VALUES ($1, $2, 'AUTH_VERIFY_EMAIL', 'auth', $3, $4)`,
+      [
+        result?.user_id || null, result?.email || null,
+        getRealIp(req), req.headers['user-agent'] || null,
+      ]
+    ).catch(err => console.error('[AUDIT] verify email error:', err.message));
     res.redirect(`${base}?status=success`);
   } catch (e) {
     res.redirect(`${base}?status=error&code=${encodeURIComponent(e.message)}`);
@@ -211,7 +241,18 @@ app.post('/auth/login', authLimiter, portalLoginLimiter, async (req, res) => {
     ).catch(err => console.error('[AUDIT] login insert error:', err.message));
     res.json(result);
   } catch (e) {
-    if (e?.message === 'account_inactive') return res.status(403).json({ error: 'account_inactive' });
+    const reason = e?.message === 'account_inactive' ? 'account_inactive' : 'invalid_credentials';
+    q(
+      `INSERT INTO audit_logs (user_id, user_email, action, resource_type, ip_address, user_agent, details)
+       VALUES (NULL, $1, 'LOGIN_FAILED', 'auth', $2, $3, $4)`,
+      [
+        (email || '').toLowerCase(),
+        getRealIp(req),
+        req.headers['user-agent'] || null,
+        JSON.stringify({ reason }),
+      ]
+    ).catch(err => console.error('[AUDIT] login_failed insert error:', err.message));
+    if (reason === 'account_inactive') return res.status(403).json({ error: 'account_inactive' });
     res.status(401).json({ error: 'invalid_credentials' });
   }
 });
@@ -220,6 +261,11 @@ app.post('/auth/forgot-password', authLimiter, async (req, res) => {
   try {
     const { email } = req.body || {};
     const out = await requestPasswordReset(email);
+    q(
+      `INSERT INTO audit_logs (user_id, user_email, action, resource_type, ip_address, user_agent, details)
+       VALUES (NULL, $1, 'PASSWORD_RESET_REQUEST', 'auth', $2, $3, NULL)`,
+      [(email || '').toLowerCase(), getRealIp(req), req.headers['user-agent'] || null]
+    ).catch(() => {});
     res.json(out);
   } catch (e) {
     const status = e?.status || 400;
@@ -231,6 +277,11 @@ app.post('/auth/reset-password', authLimiter, async (req, res) => {
   try {
     const { token, new_password } = req.body || {};
     const out = await resetPasswordWithToken(token, new_password);
+    q(
+      `INSERT INTO audit_logs (user_id, user_email, action, resource_type, ip_address, user_agent, details)
+       VALUES ($1, $2, 'PASSWORD_RESET_DONE', 'auth', $3, $4, NULL)`,
+      [out.user?.id || null, out.user?.email || null, getRealIp(req), req.headers['user-agent'] || null]
+    ).catch(() => {});
     res.json(out);
   } catch (e) {
     const status = e?.status || 400;
@@ -388,12 +439,23 @@ app.post('/devices', requireAuth, async (req, res) => {
      RETURNING id`,
     [req.user.sub, name || null, platform, apns_token || null, fcm_token || null, bundle_id, sandbox, model, os_version, timezone, app_version, app_build_number ?? null]
   );
+
+  // Notification — enrôlement mobile
+  const { rows: uRows } = await q('SELECT first_name FROM users WHERE id=$1', [req.user.sub]).catch(() => ({ rows: [] }));
+  dispatch('mobile_enrolled', req.user.sub, {
+    first_name: uRows[0]?.first_name || '',
+    device_name: name || platform || 'Mobile',
+    platform: platform,
+    model: model || '',
+    app_version: app_version || '',
+  }, { resourceType: 'mobile_device', resourceId: rows[0].id }).catch(() => {});
+
   res.json({ device_id: rows[0].id });
 });
 
 app.get('/devices', requireAuth, async (req, res) => {
   const { rows } = await q(
-    'SELECT id, name, platform, bundle_id, is_active, last_seen FROM mobile_devices WHERE user_id=$1 ORDER BY last_seen DESC',
+    'SELECT id, name, platform, bundle_id, is_active, last_seen, model, os_version, app_version, app_build_number FROM mobile_devices WHERE user_id=$1 ORDER BY last_seen DESC',
     [req.user.sub]
   );
   res.json(rows);
@@ -433,6 +495,13 @@ app.post('/esp-devices', requireAuth, async (req, res) => {
         [req.user.sub, esp_uid, name || null, topic_prefix, mqtt_password_hash]
       );
       await auditDevice('device.enrolled', { esp_uid, name: name || null, topic_prefix });
+      // Notification — enrôlement nouveau périphérique
+      const { rows: uRows } = await q('SELECT first_name FROM users WHERE id=$1', [req.user.sub]).catch(() => ({ rows: [] }));
+      dispatch('esp_enrolled', req.user.sub, {
+        first_name: uRows[0]?.first_name || '',
+        esp_name: name || esp_uid,
+        esp_uid,
+      }, { resourceType: 'esp_device', resourceId: rows[0].id }).catch(() => {});
       // device_type_id sera auto-assigné par mqttWorker dès le premier message MQTT
       return res.status(201).json({ ...rows[0], mqtt_username: esp_uid });
     }
@@ -872,6 +941,24 @@ app.delete('/me', requireAuth, async (req, res) => {
 app.use('/public', cmsPublicRouter);
 app.use('/public', publicProductsRouter);
 app.use('/public', publicOrdersRouter);
+app.use('/public', publicCountriesRouter);
+
+// GET /public/stripe/config — publishable key Stripe (clé publique, non secrète)
+app.get('/public/stripe/config', async (req, res) => {
+  try {
+    const { rows } = await q(
+      `SELECT key, value FROM app_config WHERE key IN (
+        'stripe_mode','stripe_test_publishable_key','stripe_live_publishable_key'
+      )`
+    );
+    const db = Object.fromEntries(rows.map(r => [r.key, r.value]));
+    const mode = db.stripe_mode || 'test';
+    const pk = db[`stripe_${mode}_publishable_key`] || null;
+    res.json({ publishable_key: pk, mode });
+  } catch {
+    res.json({ publishable_key: null, mode: 'test' });
+  }
+});
 
 /**
  * POST /public/contact
@@ -927,17 +1014,26 @@ app.post('/public/contact', contactLimiter, async (req, res) => {
 // ADMIN
 // =============================================
 
+app.use('/admin', adminLimiter);
 app.use('/admin', auditMiddleware);
 app.use('/admin', adminRouter);
 app.use('/admin', auditRouter);
 app.use('/admin', adminProductsRouter);
 app.use('/admin', adminTicketsRouter);
 app.use('/admin', adminOrdersRouter);
+app.use('/admin', adminCountriesRouter);
 
 // =============================================
-// PORTAL
+// APP MOBILE (iOS / Android)
 // =============================================
 
+app.use(['/devices', '/esp-devices', '/esp-rules', '/esp-alerts', '/sound-history', '/me'], appLimiter);
+
+// =============================================
+// PORTAL / AUTHENTICATED USER
+// =============================================
+
+app.use(addressesRouter);
 app.use('/portal', portalTicketsRouter);
 app.use('/portal', portalOrdersRouter);
 
@@ -1004,6 +1100,14 @@ function startRetentionPurge() {
   setInterval(runRetentionPurge, 60 * 60 * 1000); // toutes les heures
 }
 
+function startNotifWorkers() {
+  // Sys 3 — vérification hors-ligne toutes les minutes
+  setInterval(() => { checkOfflineDevices().catch(() => {}); }, 60 * 1000);
+  // Sys 4 — notifications planifiées toutes les minutes
+  setInterval(() => { runScheduledNotifs().catch(() => {}); }, 60 * 1000);
+  console.log('[APP] Workers notifications (offline + scheduled) démarrés');
+}
+
 // =============================================
 // HANDLERS
 // =============================================
@@ -1031,4 +1135,5 @@ app.listen(config.port, async () => {
   await reloadSmtpConfig();
   startWorker();
   startRetentionPurge();
+  startNotifWorkers();
 });

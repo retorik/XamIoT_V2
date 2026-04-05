@@ -80,6 +80,35 @@ Le script `set -eo pipefail` est utilisé dans le heredoc SSH (pas `-u` pour év
 
 Voir `README.md` pour l'architecture complète.
 
+## Déploiement VPS PROD (ecrimoi.com)
+
+### ⚠️ Fichier compose obligatoire sur ecrimoi.com
+
+Sur ecrimoi.com, **toujours utiliser `docker-compose.ecrimoi.yml`** — PAS `docker-compose.prod.yml`.
+
+`docker-compose.prod.yml` contient des labels Traefik DEV (`apixam.holiceo.com`) → l'API devient inaccessible sur PROD si ce fichier est utilisé.
+
+```bash
+# API PROD
+rsync -avz --delete --exclude='.git/' --exclude='node_modules/' --exclude='.env.*' --exclude='dist/' \
+  /Users/jeremyfauvet/Dev_Claude/XamIoT/XamIoT_Api_v2/ \
+  jeremy@ecrimoi.com:/home/jeremy/XamIoT_v2/api/
+ssh jeremy@ecrimoi.com "cd /home/jeremy/XamIoT_v2/api && docker compose -f docker-compose.ecrimoi.yml up -d --build"
+
+# Admin UI PROD
+rsync -avz --delete --exclude='.git/' --exclude='node_modules/' --exclude='.env.*' --exclude='dist/' \
+  /Users/jeremyfauvet/Dev_Claude/XamIoT/xamiot-admin-suite_v2/ \
+  jeremy@ecrimoi.com:/home/jeremy/XamIoT_v2/admin/
+ssh jeremy@ecrimoi.com "cd /home/jeremy/XamIoT_v2/admin && docker compose -f docker-compose.ecrimoi.yml up -d --build"
+```
+
+### Postgres sur ecrimoi.com
+- Container : `xamiot-postgres`
+- Superuser : `xamiot` (pas `postgres`)
+- Commande : `docker exec xamiot-postgres psql -U xamiot -d xamiot_v2 -c "..."`
+
+---
+
 ## Variables d'environnement
 
 Voir `.env.example` pour la liste des variables.
@@ -88,4 +117,4 @@ Voir `.env.example` pour la liste des variables.
 |---------|--------------|-------|
 | `.env.local` | Dev local Mac | Non commité |
 | `.env.dev` | VPS dev (holiceo.com) | Non commité, utilisé par `docker-compose.dev.yml` |
-| `.env.prod` | VPS prod (ecrimoi.com) | Jamais commité, utilisé par `docker-compose.prod.yml` |
+| `.env.prod` | VPS prod (ecrimoi.com) | Jamais commité, utilisé par `docker-compose.ecrimoi.yml` |

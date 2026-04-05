@@ -4,6 +4,8 @@
 import express from 'express';
 import { q } from './db.js';
 import { requireAuth } from './auth.js';
+import { dispatch, getStatusLabel } from './notifDispatcher.js';
+import { config } from './config.js';
 
 export const adminTicketsRouter = express.Router();
 export const portalTicketsRouter = express.Router();
@@ -11,6 +13,30 @@ export const portalTicketsRouter = express.Router();
 // =============================================
 // ADMIN — TICKETS
 // =============================================
+
+// GET /admin/tickets/stats — comptages par statut
+adminTicketsRouter.get('/tickets/stats', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await q(`SELECT status, COUNT(*)::int AS count FROM support_tickets GROUP BY status`);
+    const stats = {};
+    for (const r of rows) stats[r.status] = r.count;
+    stats.total = Object.values(stats).reduce((a, b) => a + b, 0);
+    stats.active = (stats.open || 0) + (stats.in_progress || 0);
+    res.json(stats);
+  } catch (e) { next(e); }
+});
+
+// GET /admin/rma/stats — comptages par statut
+adminTicketsRouter.get('/rma/stats', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await q(`SELECT status, COUNT(*)::int AS count FROM rma_requests GROUP BY status`);
+    const stats = {};
+    for (const r of rows) stats[r.status] = r.count;
+    stats.total = Object.values(stats).reduce((a, b) => a + b, 0);
+    stats.active = (stats.pending || 0) + (stats.approved || 0) + (stats.received || 0);
+    res.json(stats);
+  } catch (e) { next(e); }
+});
 
 // GET /admin/tickets — liste avec user email + nb messages + dernier message at
 adminTicketsRouter.get('/tickets', requireAuth, async (req, res, next) => {
@@ -109,7 +135,20 @@ adminTicketsRouter.patch('/tickets/:id', requireAuth, async (req, res, next) => 
     );
 
     const { rows } = await q('SELECT * FROM support_tickets WHERE id=$1', [req.params.id]);
-    res.json(rows[0] || {});
+    const updated = rows[0] || {};
+
+    // Notification — changement de statut ticket (envoyée à l'utilisateur)
+    if (status !== undefined && updated.user_id) {
+      const statusLabel = getStatusLabel('ticket', status);
+      dispatch('ticket_status_changed', updated.user_id, {
+        ticket_id: req.params.id,
+        subject: updated.subject || '',
+        status_to: statusLabel,
+        ticket_url: `${config.urls.ticketBase}/${req.params.id}`,
+      }, { resourceType: 'ticket', resourceId: req.params.id }).catch(() => {});
+    }
+
+    res.json(updated);
   } catch (e) { next(e); }
 });
 
@@ -131,6 +170,17 @@ adminTicketsRouter.post('/tickets/:id/messages', requireAuth, async (req, res, n
 
     // Mettre à jour updated_at du ticket
     await q('UPDATE support_tickets SET updated_at=now() WHERE id=$1', [req.params.id]);
+
+    // Notification — réponse admin au ticket (envoyée à l'utilisateur)
+    const { rows: tRows } = await q('SELECT user_id, subject FROM support_tickets WHERE id=$1', [req.params.id]);
+    if (tRows[0]?.user_id) {
+      dispatch('ticket_replied_by_admin', tRows[0].user_id, {
+        ticket_id: req.params.id,
+        subject: tRows[0].subject || '',
+        body_preview: body.trim().slice(0, 200),
+        ticket_url: `${config.urls.ticketBase}/${req.params.id}`,
+      }, { resourceType: 'ticket', resourceId: req.params.id }).catch(() => {});
+    }
 
     res.status(201).json(rows[0]);
   } catch (e) { next(e); }
@@ -205,7 +255,19 @@ adminTicketsRouter.patch('/rma/:id', requireAuth, async (req, res, next) => {
     await q(`UPDATE rma_requests SET ${sets.join(', ')} WHERE id=$${i}`, params);
 
     const { rows } = await q('SELECT * FROM rma_requests WHERE id=$1', [req.params.id]);
-    res.json(rows[0] || {});
+    const updatedRma = rows[0] || {};
+
+    // Notification — changement de statut RMA (envoyée à l'utilisateur)
+    if (status !== undefined && updatedRma.user_id) {
+      dispatch('rma_status_changed', updatedRma.user_id, {
+        rma_id: req.params.id,
+        product_sku: updatedRma.product_sku || '',
+        status_to: getStatusLabel('rma', status),
+        rma_url: `${config.urls.rmaBase}/${req.params.id}`,
+      }, { resourceType: 'rma', resourceId: req.params.id }).catch(() => {});
+    }
+
+    res.json(updatedRma);
   } catch (e) { next(e); }
 });
 
@@ -264,6 +326,13 @@ portalTicketsRouter.post('/tickets', requireAuth, async (req, res, next) => {
         [ticket.id, req.user.sub, product_sku, subject.trim()]
       );
     }
+
+    // Notification — nouveau ticket (aux admins)
+    dispatch('ticket_created', null, {
+      ticket_id: ticket.id,
+      subject: subject.trim(),
+      category: cat,
+    }, { resourceType: 'ticket', resourceId: ticket.id, adminOnly: true }).catch(() => {});
 
     res.status(201).json(ticket);
   } catch (e) { next(e); }
@@ -347,6 +416,21 @@ portalTicketsRouter.post('/rma', requireAuth, async (req, res, next) => {
        RETURNING *`,
       [ticket_id || null, req.user.sub, product_sku.trim(), reason.trim(), order_id || null]
     );
+
+    // Notification — nouvelle demande RMA (aux admins + confirmation à l'utilisateur)
+    dispatch('rma_created', req.user.sub, {
+      rma_id: rows[0].id,
+      product_sku: product_sku.trim(),
+      reason: reason.trim().slice(0, 200),
+      rma_url: `${config.urls.rmaBase}/${rows[0].id}`,
+    }, { resourceType: 'rma', resourceId: rows[0].id }).catch(() => {});
+    dispatch('rma_created', null, {
+      rma_id: rows[0].id,
+      product_sku: product_sku.trim(),
+      reason: reason.trim().slice(0, 200),
+      rma_url: `${config.urls.rmaBase}/${rows[0].id}`,
+    }, { resourceType: 'rma', resourceId: rows[0].id, adminOnly: true }).catch(() => {});
+
     res.status(201).json(rows[0]);
   } catch (e) { next(e); }
 });

@@ -73,11 +73,16 @@ function buildUrls() {
     // Lien d'activation envoyé dans l'email → appelle l'API elle-même
     activationLinkBase: process.env.ACTIVATION_LINK_BASE || `${apiPublic}/auth/activate`,
 
-    // Page de résultat après clic sur le lien d'activation (portail client)
-    activationResult: process.env.ACTIVATION_RESULT_URL || `${publicPortal}/activation-result`,
+    // Page de résultat après clic sur le lien d'activation (site public)
+    activationResult: process.env.ACTIVATION_RESULT_URL || `${publicSite}/activation-result`,
 
     // Page de réinitialisation du mot de passe (portail client)
     resetPassword: process.env.RESET_PASSWORD_URL || `${publicPortal}/reset-password`,
+
+    // URLs portail client — pages de suivi (utilisées dans les variables de templates email)
+    orderBase:  process.env.ORDER_URL_BASE  || `${publicPortal}/commandes`,
+    ticketBase: process.env.TICKET_URL_BASE || `${publicPortal}/support`,
+    rmaBase:    process.env.RMA_URL_BASE    || `${publicPortal}/rma`,
   };
 }
 

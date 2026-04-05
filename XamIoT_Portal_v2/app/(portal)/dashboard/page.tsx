@@ -22,6 +22,10 @@ interface MobileDevice {
   platform: 'ios' | 'android';
   is_active: boolean;
   last_seen: string | null;
+  model: string | null;
+  os_version: string | null;
+  app_version: string | null;
+  app_build_number: number | null;
 }
 
 interface AlertRule {
@@ -192,7 +196,14 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-slate-900 text-sm truncate">{m.name || (m.platform === 'ios' ? 'iPhone' : 'Android')}</p>
-                  <p className="text-xs text-slate-400 mt-0.5 capitalize">{m.platform}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {[m.model, m.os_version].filter(Boolean).join(' · ') || m.platform}
+                  </p>
+                  {(m.app_version || m.app_build_number) && (
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      v{m.app_version ?? '—'}{m.app_build_number ? ` (${m.app_build_number})` : ''}
+                    </p>
+                  )}
                 </div>
                 <span className={`flex-shrink-0 w-2 h-2 rounded-full ${m.is_active ? 'bg-green-400' : 'bg-slate-300'}`} />
               </div>

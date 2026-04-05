@@ -10,6 +10,10 @@ import UserDetails from './pages/UserDetails.jsx';
 import Alerts from './pages/Alerts.jsx';
 import EspDevices from './pages/EspDevices.jsx';
 import Rules from './pages/Rules.jsx';
+import Devices from './pages/Devices.jsx';
+import Support from './pages/Support.jsx';
+import Logs from './pages/Logs.jsx';
+import PaymentLogs from './pages/PaymentLogs.jsx';
 import Notifications from './pages/Notifications.jsx';
 import DeviceTypes from './pages/DeviceTypes.jsx';
 import MqttFrames from './pages/MqttFrames.jsx';
@@ -27,23 +31,20 @@ import TicketsManager from './pages/TicketsManager.jsx';
 import RmaManager from './pages/RmaManager.jsx';
 import SiteInternet from './pages/SiteInternet.jsx';
 import BoutiqueWrapper from './pages/BoutiqueWrapper.jsx';
+import CountriesManager from './pages/CountriesManager.jsx';
 
 const NAV_LINKS = [
-  { to: '/dashboard',          label: 'Dashboard' },
-  { to: '/site',               label: 'Site internet' },
-  { to: '/boutique',           label: 'Boutique' },
-  { to: '/support/tickets',    label: 'Support' },
-  { to: '/support/rma',        label: 'RMA' },
-  { to: '/users',              label: 'Utilisateurs' },
-  { to: '/esp',                label: 'ESP' },
-  { to: '/rules',              label: 'Règles' },
-  { to: '/alerts',             label: 'Alertes' },
-  { to: '/device-types',       label: 'Types devices' },
-  { to: '/notifications',      label: 'Notifications' },
-  { to: '/ota',                label: 'Mise à jour OTA' },
-  { to: '/settings',           label: 'Paramètres' },
-  { to: '/mqtt-logs',          label: 'Logs MQTT' },
-  { to: '/audit',              label: 'Audit logs' },
+  { to: '/dashboard',       label: 'Dashboard' },
+  { to: '/users',           label: 'Utilisateurs' },
+  { to: '/boutique',        label: 'Boutique' },
+  { to: '/support',         label: 'Support' },
+  { to: '/devices',         label: 'Périphériques' },
+  { to: '/device-types',    label: 'Types de périphériques' },
+  { to: '/notifications',   label: 'Notifications' },
+  { to: '/ota',             label: 'Mise à jour OTA' },
+  { to: '/site',            label: 'Site internet' },
+  { to: '/settings',        label: 'Paramètres' },
+  { to: '/logs',            label: 'Journaux' },
 ];
 
 function StatusDot({ status, tooltip }) {
@@ -63,15 +64,33 @@ function StatusDot({ status, tooltip }) {
   );
 }
 
+function MetricItem({ icon, label, value, sub, tooltip }) {
+  return (
+    <div className="service-status-item" style={{ gap: 5 }}>
+      <span style={{ fontSize: 14 }}>{icon}</span>
+      <span className="service-status-label" style={{ textTransform: 'none', letterSpacing: 0 }}>
+        {label}
+      </span>
+      <span style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{value ?? '—'}</span>
+      {sub != null && (
+        <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>/ {sub}</span>
+      )}
+      {tooltip && <span className="status-tooltip">{tooltip}</span>}
+    </div>
+  );
+}
+
 function ServiceStatusBar() {
   const [services, setServices] = useState({
-    api:    'ok',
-    mqtt:   'loading',
-    apns:   'loading',
-    fcm:    'loading',
-    smtp:   'unconfigured',
-    stripe: 'loading',
+    api:       'ok',
+    mqtt:      'loading',
+    apns:      'loading',
+    fcm:       'loading',
+    smtp:      'unconfigured',
+    stripe:    'loading',
+    ratelimit: 'loading',
   });
+  const [metrics, setMetrics] = useState({ tickets: null, rma: null, orders: null });
 
   const refresh = useCallback(async () => {
     const next = { api: 'ok' };
@@ -79,45 +98,52 @@ function ServiceStatusBar() {
     try {
       const statusData = await apiFetch('/admin/status');
       next.mqtt = statusData?.db === 'ok' ? 'ok' : 'error';
-    } catch {
-      next.mqtt = 'error';
-    }
+    } catch { next.mqtt = 'error'; }
 
     try {
       const apnsData = await apiFetch('/admin/apns');
       next.apns = apnsData?.configured ? 'ok' : 'unconfigured';
-    } catch {
-      next.apns = 'error';
-    }
+    } catch { next.apns = 'error'; }
 
     try {
       const fcmData = await apiFetch('/admin/fcm');
       next.fcm = fcmData?.configured ? (fcmData?.ready ? 'ok' : 'error') : 'unconfigured';
-    } catch {
-      next.fcm = 'error';
-    }
+    } catch { next.fcm = 'error'; }
 
     try {
       const smtpData = await apiFetch('/admin/smtp');
       next.smtp = smtpData?.configured ? (smtpData?.ready ? 'ok' : 'error') : 'unconfigured';
-    } catch {
-      next.smtp = 'error';
-    }
+    } catch { next.smtp = 'error'; }
 
     try {
       const stripeData = await apiFetch('/admin/stripe');
       const sMode = stripeData?.active_mode || 'test';
       const sInfo = stripeData?.[sMode];
-      if (!sInfo?.configured) {
-        next.stripe = 'unconfigured';
-      } else {
-        next.stripe = sMode === 'live' ? 'ok' : 'stripe_test';
-      }
-    } catch {
-      next.stripe = 'error';
-    }
+      next.stripe = !sInfo?.configured ? 'unconfigured' : sMode === 'live' ? 'ok' : 'stripe_test';
+    } catch { next.stripe = 'error'; }
+
+    try {
+      const rlLogs = await apiFetch('/admin/rate-limit/logs');
+      next.ratelimit = Array.isArray(rlLogs) && rlLogs.length > 0 ? 'error' : 'ok';
+    } catch { next.ratelimit = 'error'; }
 
     setServices(prev => ({ ...prev, ...next }));
+
+    // Métriques métier (tickets, RMA, commandes)
+    try {
+      const [tStats, rStats, oStats] = await Promise.all([
+        apiFetch('/admin/tickets/stats'),
+        apiFetch('/admin/rma/stats'),
+        apiFetch('/admin/orders/stats'),
+      ]);
+      const ordersActive    = (oStats?.paid || 0) + (oStats?.processing || 0) + (oStats?.shipped || 0);
+      const ordersDone      = (oStats?.completed || 0) + (oStats?.delivered || 0);
+      setMetrics({
+        tickets: { active: tStats?.active ?? 0, total: tStats?.total ?? 0 },
+        rma:     { active: rStats?.active ?? 0, total: rStats?.total ?? 0 },
+        orders:  { active: ordersActive, done: ordersDone },
+      });
+    } catch { /* métriques non critiques */ }
   }, []);
 
   useEffect(() => {
@@ -128,23 +154,57 @@ function ServiceStatusBar() {
 
   return (
     <div className="service-status-bar">
-      <StatusDot status={services.api}  tooltip="API" />
-      <StatusDot status={services.mqtt} tooltip="MQTT" />
-      <StatusDot status={services.apns} tooltip="iOS" />
-      <StatusDot status={services.fcm}  tooltip="Android" />
-      <StatusDot status={services.smtp}   tooltip="SMTP" />
-      <StatusDot status={services.stripe === 'stripe_test' ? 'stripe_test' : services.stripe} tooltip="Stripe" />
+      {/* Section services */}
+      <div className="status-section">
+        <StatusDot status={services.api}       tooltip="API" />
+        <StatusDot status={services.mqtt}      tooltip="MQTT" />
+        <StatusDot status={services.apns}      tooltip="iOS" />
+        <StatusDot status={services.fcm}       tooltip="Android" />
+        <StatusDot status={services.smtp}      tooltip="SMTP" />
+        <StatusDot status={services.stripe === 'stripe_test' ? 'stripe_test' : services.stripe} tooltip="Stripe" />
+        <StatusDot status={services.ratelimit} tooltip="Rate limit" />
+      </div>
+
+      <span className="status-divider" />
+
+      {/* Section métriques métier */}
+      <div className="status-section">
+        <MetricItem
+          icon="🎫"
+          label="Tickets"
+          value={metrics.tickets?.active ?? '…'}
+          sub={metrics.tickets?.total ?? '…'}
+          tooltip={`Tickets : ${metrics.tickets?.active ?? '?'} en cours (ouvert/en cours) sur ${metrics.tickets?.total ?? '?'} au total`}
+        />
+        <MetricItem
+          icon="📦"
+          label="RMA"
+          value={metrics.rma?.active ?? '…'}
+          sub={metrics.rma?.total ?? '…'}
+          tooltip={`RMA : ${metrics.rma?.active ?? '?'} actives (en attente / approuvées / reçues) sur ${metrics.rma?.total ?? '?'} au total`}
+        />
+        <MetricItem
+          icon="🛒"
+          label="Commandes"
+          value={`${metrics.orders?.active ?? '…'} en cours`}
+          sub={`${metrics.orders?.done ?? '…'} terminées`}
+          tooltip={`Commandes : ${metrics.orders?.active ?? '?'} en cours (payées / expédiées) — ${metrics.orders?.done ?? '?'} terminées`}
+        />
+      </div>
     </div>
   );
 }
 
-// Alias de routes : /site couvre aussi /cms/*
+// Alias de routes : /site couvre aussi /cms/*, /support couvre tickets+rma, /devices couvre esp+rules+alerts
 const ROUTE_ALIASES = {
-  '/site': ['/cms/'],
+  '/site':     ['/cms/', '/site'],
   '/boutique': ['/boutique/'],
+  '/support':  ['/support/'],
+  '/devices':  ['/esp', '/rules', '/alerts'],
+  '/logs':     ['/mqtt-logs', '/audit'],
 };
 
-function Sidebar({ user, onLogout, open, onClose }) {
+function Sidebar({ user, onLogout, open, onClose, logoUrl, logoHeight }) {
   const { pathname } = useLocation();
 
   function isLinkActive(to, routerIsActive) {
@@ -158,7 +218,11 @@ function Sidebar({ user, onLogout, open, onClose }) {
     <>
       {open && <div className="sidebar-overlay" onClick={onClose} />}
       <aside className={`sidebar${open ? ' sidebar--open' : ''}`}>
-        <div className="sidebar-logo">XamIoT Admin</div>
+        <div className="sidebar-logo">
+          {logoUrl
+            ? <img src={logoUrl} alt="XamIoT" style={{ height: logoHeight, maxWidth: '100%', objectFit: 'contain', display: 'block', filter: 'brightness(0) invert(1)' }} />
+            : 'XamIoT Admin'}
+        </div>
 
         <nav className="sidebar-nav">
           {NAV_LINKS.map(({ to, label }) => (
@@ -191,6 +255,8 @@ export default function App() {
   const [ready, setReady]       = useState(false);
   const [user, setUser]         = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [logoUrl, setLogoUrl]       = useState('');
+  const [logoHeight, setLogoHeight] = useState(40);
 
   useEffect(() => {
     const t = getToken();
@@ -202,6 +268,13 @@ export default function App() {
         setReady(true);
         nav('/login');
       });
+    apiFetch('/admin/app-config')
+      .then(cfg => {
+        const map = Object.fromEntries((cfg || []).map(r => [r.key, r.value]));
+        if (map.logo_url) setLogoUrl(map.logo_url);
+        if (map.logo_height) setLogoHeight(parseInt(map.logo_height, 10) || 40);
+      })
+      .catch(() => {});
   }, []);
 
   function logout() {
@@ -229,6 +302,8 @@ export default function App() {
         onLogout={logout}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        logoUrl={logoUrl}
+        logoHeight={logoHeight}
       />
 
       <div className="app-content">
@@ -254,21 +329,26 @@ export default function App() {
           <Route path="/boutique/produits/new"    element={<ProductEditor />} />
           <Route path="/boutique/produits/:id"    element={<ProductEditor />} />
           <Route path="/boutique/commandes"  element={<BoutiqueWrapper />} />
-          <Route path="/support/tickets"          element={<TicketsManager />} />
-          <Route path="/support/rma"              element={<RmaManager />} />
+          <Route path="/boutique/pays"       element={<CountriesManager />} />
+          <Route path="/orders"              element={<OrdersManager />} />
+          <Route path="/support"             element={<Support />} />
+          <Route path="/support/tickets"     element={<Support />} />
+          <Route path="/support/rma"         element={<Support />} />
           <Route path="/users"               element={<Users />} />
           <Route path="/users/:id"           element={<UserDetails />} />
-          <Route path="/esp"                 element={<EspDevices />} />
-          <Route path="/rules"               element={<Rules />} />
-          <Route path="/alerts"              element={<Alerts />} />
+          <Route path="/devices"             element={<Devices />} />
+          <Route path="/esp"                 element={<Devices />} />
+          <Route path="/rules"               element={<Devices />} />
+          <Route path="/alerts"              element={<Devices />} />
           <Route path="/notifications"       element={<Notifications />} />
           <Route path="/apns"                element={<Notifications />} />
           <Route path="/device-types"        element={<DeviceTypes />} />
           <Route path="/mqtt-frames/:typeId" element={<MqttFrames />} />
           <Route path="/settings"            element={<Settings />} />
           <Route path="/ota"                 element={<OtaUpdates />} />
-          <Route path="/mqtt-logs"           element={<MqttLogs />} />
-          <Route path="/audit"               element={<AuditLogs />} />
+          <Route path="/logs"                element={<Logs />} />
+          <Route path="/mqtt-logs"           element={<Logs />} />
+          <Route path="/audit"               element={<Logs />} />
           <Route path="*"                    element={<Dashboard />} />
         </Routes>
       </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useState, FormEvent } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://apixam.holiceo.com';
 
@@ -14,13 +14,31 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const idleLogout = searchParams.get('reason') === 'idle';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  async function handleResetRequest(e: FormEvent) {
+    e.preventDefault();
+    setResetLoading(true);
+    try {
+      await fetch(`${API_BASE}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+    } finally {
+      setResetLoading(false);
+      setResetSent(true); // Toujours montrer le succès (ne pas révéler si l'email existe)
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -52,7 +70,8 @@ function LoginForm() {
       // Stocker les infos utilisateur
       localStorage.setItem('user', JSON.stringify(data.user));
 
-      router.push('/dashboard');
+      // Rechargement complet pour que le middleware Next.js lise le cookie dans les headers HTTP
+      window.location.href = '/dashboard';
     } catch {
       setError('Une erreur est survenue. Veuillez réessayer.');
     } finally {
@@ -76,59 +95,107 @@ function LoginForm() {
 
         {/* Carte formulaire */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
-                Adresse e-mail
-              </label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition text-sm"
-                placeholder="vous@exemple.com"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
-                Mot de passe
-              </label>
-              <input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition text-sm"
-                placeholder="••••••••"
-              />
-            </div>
-
-            {idleLogout && !error && (
-              <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
-                Vous avez été déconnecté pour inactivité.
+          {!resetMode ? (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Adresse e-mail
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition text-sm"
+                  placeholder="vous@exemple.com"
+                />
               </div>
-            )}
 
-            {error && (
-              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                {error}
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Mot de passe
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition text-sm"
+                  placeholder="••••••••"
+                />
               </div>
-            )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 px-4 bg-brand-600 hover:bg-brand-700 disabled:bg-brand-300 text-white font-medium rounded-lg transition text-sm focus:outline-none focus:ring-2 focus:ring-brand-600 focus:ring-offset-2"
-            >
-              {loading ? 'Connexion en cours…' : 'Se connecter'}
-            </button>
-          </form>
+              {idleLogout && !error && (
+                <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
+                  Vous avez été déconnecté pour inactivité.
+                </div>
+              )}
+
+              {error && (
+                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 px-4 bg-brand-600 hover:bg-brand-700 disabled:bg-brand-300 text-white font-medium rounded-lg transition text-sm focus:outline-none focus:ring-2 focus:ring-brand-600 focus:ring-offset-2"
+              >
+                {loading ? 'Connexion en cours…' : 'Se connecter'}
+              </button>
+
+              <div className="text-center">
+                <button type="button" onClick={() => { setResetMode(true); setResetEmail(email); setResetSent(false); }}
+                  className="text-sm text-brand-600 hover:underline">
+                  Mot de passe oublié ?
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900 mb-1">Réinitialiser le mot de passe</h2>
+                <p className="text-sm text-slate-500">Le lien envoyé par email est valable 15 minutes et à usage unique.</p>
+              </div>
+
+              {resetSent ? (
+                <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+                  Si un compte existe avec cet email, un lien de réinitialisation vous a été envoyé.
+                </div>
+              ) : (
+                <form onSubmit={handleResetRequest} className="space-y-4">
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition text-sm"
+                    placeholder="vous@exemple.com"
+                  />
+                  <button
+                    type="submit"
+                    disabled={resetLoading}
+                    className="w-full py-2.5 px-4 bg-brand-600 hover:bg-brand-700 disabled:bg-brand-300 text-white font-medium rounded-lg transition text-sm"
+                  >
+                    {resetLoading ? 'Envoi…' : 'Envoyer le lien'}
+                  </button>
+                </form>
+              )}
+
+              <div className="text-center">
+                <button type="button" onClick={() => setResetMode(false)}
+                  className="text-sm text-slate-500 hover:underline">
+                  ← Retour à la connexion
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

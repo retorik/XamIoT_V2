@@ -9,8 +9,8 @@
 | `XamIoT_IoS_v2/` | App iOS | Swift / SwiftUI |
 | `XamIoT_Android_v2/` | App Android | Kotlin / Jetpack Compose |
 | `ESP32-C3-Sensor_v2/` | Firmware capteur | PlatformIO / ESP32-C3 |
-| `XamIoT_Portal_v2/` | Portail client | React |
-| `XamIoT_Site_v2/` | Site web public | React |
+| `XamIoT_Portal_v2/` | Portail client (suivi uniquement) | Next.js |
+| `XamIoT_Site_v2/` | Site web public + boutique + auth | Next.js |
 | `Mosquitto_v2/` | Broker MQTT | Mosquitto |
 
 **Repo GitHub** : `https://github.com/retorik/XamIoT_V2`
@@ -31,7 +31,7 @@
 | **Site web** | https://xamsite.holiceo.com |
 | **MQTT** | mqtt.holiceo.com:8883 (TLS) |
 
-### Production (VPS ecrimoi.com) — NE PAS TOUCHER
+### Production (VPS ecrimoi.com) — deployer en meme temps que DEV (depuis 2026-04-04)
 
 | Service | URL |
 |---------|-----|
@@ -41,35 +41,60 @@
 | **Site web** | https://xamiot.com |
 | **MQTT** | mqtt.xamiot.com:8883 (TLS) |
 
-> Tout developpement et deploiement se fait UNIQUEMENT sur le VPS dev (holiceo.com).
+> Depuis le 2026-04-04 : toujours deployer DEV **et** PROD simultanement.
 
 ---
 
-## Deploiement VPS dev
+## Deploiement
 
-### REGLE ABSOLUE — Ne jamais deployer manuellement
-
-**Toujours utiliser :**
+### DEV — Script obligatoire
 
 ```bash
 bash scripts/deploy.sh
 ```
 
-### Ce que fait le script
+Ce script fait : rsync API + Admin UI + Portail + Site → migrations DB → rebuild tous les containers.
 
-1. **Rsync API** — `XamIoT_Api_v2/` → VPS `/home/jeremy/XamIoT_v2/api/`
-2. **Rsync Admin UI** — `xamiot-admin-suite_v2/` → VPS `/home/jeremy/XamIoT_v2/admin/`
-3. **Rsync Portail** — `XamIoT_Portal_v2/` → VPS `/home/jeremy/XamIoT_v2/portal/`
-4. **Migrations DB** — applique `db/0*.sql` non encore appliques
-5. **Rebuild containers** — API + Admin UI + Portail
+### PROD — Procedure manuelle par composant
 
-### Chemins VPS
+⚠️ La prod a une **structure de dossiers differente** du dev. Ne pas supposer que les chemins sont identiques.
 
-| Composant | Chemin VPS | Container |
-|-----------|-----------|-----------|
-| API | `/home/jeremy/XamIoT_v2/api/` | `xamiot-api` |
-| Admin UI | `/home/jeremy/XamIoT_v2/admin/` | `xamiot-admin-ui` |
-| Portail client | `/home/jeremy/XamIoT_v2/portal/` | `xamiot-portal` |
+#### Admin UI (composant le plus souvent mis a jour)
+
+```bash
+# 1. Rsync
+rsync -avz --delete --exclude='.git/' --exclude='node_modules/' --exclude='.env.*' --exclude='dist/' \
+  /Users/jeremyfauvet/Dev_Claude/XamIoT/xamiot-admin-suite_v2/ \
+  jeremy@ecrimoi.com:/home/jeremy/XamIoT_v2/admin/
+
+# 2. Rebuild
+ssh jeremy@ecrimoi.com "cd /home/jeremy/XamIoT_v2/admin && docker compose -f docker-compose.ecrimoi.yml build && docker compose -f docker-compose.ecrimoi.yml up -d"
+```
+
+### Chemins VPS DEV (192.168.1.6)
+
+| Composant | Chemin VPS | Container | Docker Compose |
+|-----------|-----------|-----------|----------------|
+| API | `/home/jeremy/XamIoT_v2/api/` | `xamiot-api` | `docker-compose.dev.yml` |
+| Admin UI | `/home/jeremy/XamIoT_v2/admin/` | `xamiot-admin-ui` | `docker-compose.prod.yml` |
+| Portail client | `/home/jeremy/XamIoT_v2/portal/` | `xamiot-portal` | `docker-compose.dev.yml` |
+| Site public | `/home/jeremy/XamIoT_v2/site/` | `xamiot-site` | `docker-compose.prod.yml` |
+
+### Chemins VPS PROD (ecrimoi.com)
+
+> ⚠️ **REGLE ABSOLUE** : Sur ecrimoi.com, toujours utiliser `docker-compose.ecrimoi.yml` — JAMAIS `docker-compose.prod.yml`.
+> `docker-compose.prod.yml` contient des labels Traefik DEV (holiceo.com) → le composant devient inaccessible en PROD si ce fichier est utilise. Erreur deja faite 2 fois (API + Site).
+
+| Composant | Chemin VPS | Container | Docker Compose PROD |
+|-----------|-----------|-----------|---------------------|
+| API | `/home/jeremy/XamIoT_v2/api/` | `xamiot-api` | `docker-compose.ecrimoi.yml` |
+| Admin UI | `/home/jeremy/XamIoT_v2/admin/` | `xamiot-admin-ui` | `docker-compose.ecrimoi.yml` |
+| Portail client | `/home/jeremy/XamIoT_v2/portal/` | `xamiot-portal` | `docker-compose.ecrimoi.yml` |
+| Site public | `/home/jeremy/XamIoT_v2/site/` | `xamiot-site` | `docker-compose.ecrimoi.yml` |
+
+### Postgres sur ecrimoi.com
+- Container : `xamiot-postgres`, superuser : `xamiot` (pas `postgres`)
+- `docker exec xamiot-postgres psql -U xamiot -d xamiot_v2 -c "..."`
 
 ### Variables d'environnement
 
@@ -91,3 +116,24 @@ ssh jeremy@192.168.1.6 "docker ps --format 'table {{.Names}}\t{{.Status}}' | gre
 curl -sk https://xamiot.holiceo.com/ | head -3
 curl -sk https://apixam.holiceo.com/health
 ```
+
+---
+
+## Tests
+
+```bash
+cd XamIoT_Api_v2 && npm test
+```
+
+Runner : `node --test` (Node.js natif). Fichiers : `src/__tests__/*.test.js`.
+
+---
+
+## Architecture boutique
+
+- **Auth** (login/signup/verify-email) : sur le site public (`/compte`), pas le portail
+- **Panier** : localStorage côté client (site public)
+- **Checkout** : tunnel sur le site public (`/checkout`) — adresses + calcul frais + Stripe
+- **Portail client** : suivi commandes uniquement, PAS de boutique/panier
+- **Pays** : table `countries` (249 pays ISO 3166-1), config livraison/taxes/douanes par pays
+- **Adresses** : table `user_addresses`, multi-adresses (livraison + facturation) par utilisateur

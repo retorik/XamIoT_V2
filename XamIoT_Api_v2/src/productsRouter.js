@@ -41,9 +41,11 @@ adminProductsRouter.get('/products/:id', requireAuth, async (req, res, next) => 
          p.id, p.sku, p.slug, p.status, p.price_cents, p.compare_price_cents,
          p.stock_qty, p.is_physical, p.sort_order, p.featured_media_id,
          p.category_id, p.created_by, p.created_at, p.updated_at, p.published_at,
-         c.slug AS category_slug
+         c.slug AS category_slug,
+         fm.url_path AS featured_media_url, fm.alt_text AS featured_media_alt
        FROM products p
        LEFT JOIN product_categories c ON c.id = p.category_id
+       LEFT JOIN cms_media fm ON fm.id = p.featured_media_id
        WHERE p.id = $1`,
       [req.params.id]
     );

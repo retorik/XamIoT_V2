@@ -39,6 +39,12 @@ interface ApiService {
         @Body body: Map<String, String>
     ): Response<Unit>
 
+    // POST /me/badge/reset — vide le compteur de notifications non lues
+    @POST("me/badge/reset")
+    suspend fun resetBadge(
+        @Header("Authorization") authorization: String
+    ): Response<Unit>
+
     // ==========================================================
     // MOBILE DEVICES - Smartphone registration (Push token)
     // ==========================================================

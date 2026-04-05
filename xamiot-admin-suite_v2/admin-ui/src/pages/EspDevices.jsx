@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../api.js';
 
 export default function EspDevices() {
@@ -23,6 +23,14 @@ export default function EspDevices() {
   }
 
   useEffect(() => { load(); }, []);
+
+  // Recherche live avec debounce 400ms (skip le premier rendu)
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) { mounted.current = true; return; }
+    const t = setTimeout(load, 400);
+    return () => clearTimeout(t);
+  }, [q]);
 
   function handleKey(e) {
     if (e.key === 'Enter') load();

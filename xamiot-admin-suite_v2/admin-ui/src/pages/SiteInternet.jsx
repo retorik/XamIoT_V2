@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import PagesManager from './PagesManager.jsx';
 import MediaLibrary from './MediaLibrary.jsx';
 import { AppConfigSection } from './Settings.jsx';
+import StyleEditor from './StyleEditor.jsx';
 
 const TABS = [
   { key: 'pages',  label: 'Pages' },
   { key: 'media',  label: 'Médias' },
+  { key: 'style',  label: 'Style' },
   { key: 'config', label: 'Configuration' },
 ];
 
@@ -36,6 +38,7 @@ export default function SiteInternet() {
 
       {tab === 'pages'  && <PagesManager embedded />}
       {tab === 'media'  && <MediaLibrary embedded />}
+      {tab === 'style'  && <StyleEditor />}
       {tab === 'config' && <AppConfigSection />}
     </div>
   );

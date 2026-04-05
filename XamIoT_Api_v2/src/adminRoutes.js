@@ -2,12 +2,14 @@
 import express from 'express';
 import { q } from './db.js';
 import { login, requireAuth } from './auth.js';
-import { authLimiter as adminAuthLimiter, pollLimiter, reloadRateLimitConfig, getRateLimitConfig, getRateLimitLogs } from './rateLimitManager.js';
+import { authLimiter as adminAuthLimiter, pollLimiter, reloadRateLimitConfig, getRateLimitConfig, getRateLimitLogs, getRateLimitStats, getIpTable, resetIpEntry, appLimiter } from './rateLimitManager.js';
 import { reloadApnsConfig, sendAPNS, isApnsEnabled } from './apns.js';
 import { reloadFcmConfig, isFcmReady, sendFCM } from './fcm.js';
 import { reloadMqttConfig } from './mqttConfig.js';
 import { reloadSmtpConfig, isSmtpReady, getSmtpConfig, createTransporter, buildFrom } from './smtp.js';
 import { validateCampaignPayload, buildRecipientsFilter, aggregateSendResults } from './campaignService.js';
+import { dispatch } from './notifDispatcher.js';
+import { adminNotifRouter } from './adminNotifRouter.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -103,6 +105,7 @@ async function requireAdmin(req, res, next) {
 
 adminRouter.use(requireAuth);
 adminRouter.use(requireAdmin);
+adminRouter.use('/', adminNotifRouter);
 
 /* =========================
  *  GET /admin/status
@@ -289,6 +292,33 @@ adminRouter.patch('/users/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+adminRouter.delete('/users/:id', async (req, res, next) => {
+  try {
+    const { rows: found } = await q('SELECT id, email FROM users WHERE id=$1', [req.params.id]);
+    if (!found.length) return res.status(404).json({ error: 'user_not_found' });
+    const target = found[0];
+
+    // Cascade delete dans l'ordre des dépendances
+    // esp_devices → cascade sur alert_rules → cascade sur alert_log + alert_state
+    await q('DELETE FROM esp_devices WHERE user_id=$1', [target.id]);
+    await q('DELETE FROM mobile_devices WHERE user_id=$1', [target.id]);
+    await q('DELETE FROM user_addresses WHERE user_id=$1', [target.id]);
+    await q('DELETE FROM user_badge WHERE user_id=$1', [target.id]);
+    await q('DELETE FROM password_resets WHERE user_id=$1', [target.id]);
+    await q('DELETE FROM users WHERE id=$1', [target.id]);
+
+    q(`INSERT INTO audit_logs (user_id, user_email, action, resource_type, resource_id, ip_address, user_agent, details)
+       VALUES ($1, $2, 'DELETE', 'user', $3, $4, $5, $6)`,
+      [req.user.sub, req.user.email, target.id,
+       (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim(),
+       req.headers['user-agent'] || null,
+       JSON.stringify({ deleted_email: target.email })]
+    ).catch(err => console.error('[AUDIT] user delete error:', err.message));
+
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 /* =========================
  *  ESP devices (global)
  * ========================= */
@@ -393,10 +423,25 @@ adminRouter.get('/esp-devices/:id/available-fields', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Modifier une règle (champ, op, seuil, cooldown, enabled)
+// Créer une règle (admin, sans vérification d'ownership utilisateur)
+adminRouter.post('/rules', async (req, res, next) => {
+  try {
+    const { esp_id, field, op, threshold_num, threshold_str, cooldown_sec = 60, enabled = true, user_label } = req.body || {};
+    if (!esp_id || !field || !op) return res.status(400).json({ error: 'missing_fields' });
+    if (threshold_num == null && !threshold_str) return res.status(400).json({ error: 'threshold_required' });
+    const { rows } = await q(
+      `INSERT INTO alert_rules(esp_id, field, op, threshold_num, threshold_str, enabled, cooldown_sec, user_label)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [esp_id, field, op, threshold_num ?? null, threshold_str ?? null, Boolean(enabled), Number(cooldown_sec), user_label ?? null]
+    );
+    res.json(rows[0]);
+  } catch (e) { next(e); }
+});
+
+// Modifier une règle (champ, op, seuil, cooldown, enabled, template_id)
 adminRouter.patch('/rules/:id', async (req, res, next) => {
   try {
-    const { field, op, threshold_num, threshold_str, cooldown_sec, enabled } = req.body || {};
+    const { field, op, threshold_num, threshold_str, cooldown_sec, enabled, template_id } = req.body || {};
     const sets = [];
     const params = [];
     let i = 1;
@@ -406,6 +451,7 @@ adminRouter.patch('/rules/:id', async (req, res, next) => {
     if (threshold_str !== undefined){ sets.push(`threshold_str=$${i++}`); params.push(threshold_str ?? null); }
     if (cooldown_sec !== undefined) { sets.push(`cooldown_sec=$${i++}`);  params.push(Number(cooldown_sec)); }
     if (enabled      !== undefined) { sets.push(`enabled=$${i++}`);       params.push(Boolean(enabled)); }
+    if (template_id  !== undefined) { sets.push(`template_id=$${i++}`);   params.push(template_id || null); }
     if (!sets.length) return res.status(400).json({ error: 'nothing_to_update' });
     params.push(req.params.id);
     const { rows } = await q(
@@ -947,6 +993,20 @@ adminRouter.delete('/rule-templates/:id', async (req, res, next) => {
  *  Assign device type to ESP (admin)
  * ========================= */
 
+// Renommer un ESP device (admin)
+adminRouter.patch('/esp-devices/:id', async (req, res, next) => {
+  try {
+    const { name } = req.body || {};
+    if (!name?.trim()) return res.status(400).json({ error: 'name_required' });
+    const { rows } = await q(
+      'UPDATE esp_devices SET name=$1 WHERE id=$2 RETURNING id, esp_uid, name',
+      [name.trim(), req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'not_found' });
+    res.json(rows[0]);
+  } catch (e) { next(e); }
+});
+
 adminRouter.patch('/esp-devices/:id/device-type', async (req, res, next) => {
   try {
     const { device_type_id } = req.body || {};
@@ -1110,8 +1170,8 @@ adminRouter.get('/stripe', async (req, res, next) => {
     const { rows } = await q(
       `SELECT key, value FROM app_config WHERE key IN (
         'stripe_mode',
-        'stripe_test_secret_key','stripe_test_webhook_secret',
-        'stripe_live_secret_key','stripe_live_webhook_secret'
+        'stripe_test_secret_key','stripe_test_webhook_secret','stripe_test_publishable_key',
+        'stripe_live_secret_key','stripe_live_webhook_secret','stripe_live_publishable_key'
       )`
     );
     const db = Object.fromEntries(rows.map(r => [r.key, r.value]));
@@ -1119,12 +1179,16 @@ adminRouter.get('/stripe', async (req, res, next) => {
 
     const mkInfo = (prefix) => {
       const sk = db[`stripe_${prefix}_secret_key`] || '';
+      const pk = db[`stripe_${prefix}_publishable_key`] || '';
       const wh = db[`stripe_${prefix}_webhook_secret`] || '';
       const configured = sk.startsWith('sk_live_') || sk.startsWith('sk_test_') || sk.startsWith('rk_');
+      const pk_configured = pk.startsWith('pk_live_') || pk.startsWith('pk_test_');
       return {
         configured,
         key_hint: configured ? sk.slice(0, 8) + '…' : null,
         webhook_configured: !!(wh && wh.length > 4),
+        publishable_configured: pk_configured,
+        publishable_hint: pk_configured ? pk.slice(0, 8) + '…' : null,
       };
     };
 
@@ -1138,7 +1202,11 @@ adminRouter.get('/stripe', async (req, res, next) => {
 
 adminRouter.put('/stripe', async (req, res, next) => {
   try {
-    const { mode, test_secret_key, test_webhook_secret, live_secret_key, live_webhook_secret } = req.body || {};
+    const {
+      mode,
+      test_secret_key, test_webhook_secret, test_publishable_key,
+      live_secret_key, live_webhook_secret, live_publishable_key,
+    } = req.body || {};
 
     const upsert = async (key, val) => {
       await q(
@@ -1149,10 +1217,12 @@ adminRouter.put('/stripe', async (req, res, next) => {
     };
 
     if (mode === 'test' || mode === 'live') await upsert('stripe_mode', mode);
-    if (test_secret_key !== undefined)     await upsert('stripe_test_secret_key', test_secret_key);
-    if (test_webhook_secret !== undefined) await upsert('stripe_test_webhook_secret', test_webhook_secret);
-    if (live_secret_key !== undefined)     await upsert('stripe_live_secret_key', live_secret_key);
-    if (live_webhook_secret !== undefined) await upsert('stripe_live_webhook_secret', live_webhook_secret);
+    if (test_secret_key !== undefined)      await upsert('stripe_test_secret_key', test_secret_key);
+    if (test_webhook_secret !== undefined)  await upsert('stripe_test_webhook_secret', test_webhook_secret);
+    if (test_publishable_key !== undefined) await upsert('stripe_test_publishable_key', test_publishable_key);
+    if (live_secret_key !== undefined)      await upsert('stripe_live_secret_key', live_secret_key);
+    if (live_webhook_secret !== undefined)  await upsert('stripe_live_webhook_secret', live_webhook_secret);
+    if (live_publishable_key !== undefined) await upsert('stripe_live_publishable_key', live_publishable_key);
 
     res.json({ ok: true });
   } catch (e) { next(e); }
@@ -1209,12 +1279,39 @@ adminRouter.get('/ota', async (req, res, next) => {
 // Créer une mise à jour OTA (avec upload firmware)
 adminRouter.post('/ota', otaUpload.single('firmware'), async (req, res, next) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'firmware_file_required' });
-    const { version, name, description, device_type_id, min_fw_version, scheduled_at } = req.body || {};
+    const { version, name, description, device_type_id, min_fw_version, scheduled_at, firmware_url } = req.body || {};
     if (!version?.trim() || !name?.trim()) {
-      fs.unlink(req.file.path, () => {});
+      if (req.file) fs.unlink(req.file.path, () => {});
       return res.status(400).json({ error: 'version_and_name_required' });
     }
+
+    // Mode URL externe (legacy) : pas de fichier uploadé
+    if (firmware_url?.trim()) {
+      const { rows } = await q(
+        `INSERT INTO ota_updates
+           (version, name, description, device_type_id, firmware_url,
+            min_fw_version, scheduled_at, created_by, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
+           CASE WHEN $7::timestamptz IS NOT NULL THEN 'scheduled' ELSE 'draft' END)
+         RETURNING *`,
+        [
+          version.trim(), name.trim(), description || null,
+          device_type_id || null,
+          firmware_url.trim(),
+          min_fw_version || null,
+          scheduled_at || null,
+          req.adminUser?.email || null,
+        ]
+      );
+      dispatch('ota_available', null, {
+        version: rows[0].version, name: rows[0].name || '',
+        description: rows[0].description || '',
+      }, { resourceType: 'ota_update', resourceId: rows[0].id, adminOnly: true }).catch(() => {});
+      return res.status(201).json(rows[0]);
+    }
+
+    // Mode normal : upload fichier requis
+    if (!req.file) return res.status(400).json({ error: 'firmware_file_or_url_required' });
 
     // Calcul MD5 + HMAC-SHA256
     const fileBuffer = fs.readFileSync(req.file.path);
@@ -1248,6 +1345,10 @@ adminRouter.post('/ota', otaUpload.single('firmware'), async (req, res, next) =>
         req.adminUser?.email || null,
       ]
     );
+    dispatch('ota_available', null, {
+      version: rows[0].version, name: rows[0].name || '',
+      description: rows[0].description || '',
+    }, { resourceType: 'ota_update', resourceId: rows[0].id, adminOnly: true }).catch(() => {});
     res.status(201).json(rows[0]);
   } catch (e) { next(e); }
 });
@@ -1379,13 +1480,17 @@ adminRouter.post('/ota/:id/trigger', async (req, res, next) => {
 
     if (!deps.length) return res.status(400).json({ error: 'no_pending_targets' });
 
-    // Vérifie que la mise à jour dispose d'un HMAC (requis par le firmware)
-    if (!otaUpdate.hmac_sha256) {
+    // Mode URL externe (legacy) : pas de HMAC, URL directe
+    const isLegacyUrl = !!otaUpdate.firmware_url;
+
+    if (!isLegacyUrl && !otaUpdate.hmac_sha256) {
       return res.status(400).json({ error: 'ota_hmac_missing_reupload_required' });
     }
 
-    // URL de téléchargement accessible par les ESP (via l'API publique)
-    const baseUrl = process.env.OTA_DOWNLOAD_BASE_URL || `https://apixam.holiceo.com/ota/${otaUpdate.id}/firmware`;
+    // URL de téléchargement accessible par les ESP
+    const firmwareUrl = isLegacyUrl
+      ? otaUpdate.firmware_url
+      : (process.env.OTA_DOWNLOAD_BASE_URL || `https://apixam.holiceo.com/ota/${otaUpdate.id}/firmware`);
 
     // Importe le client MQTT du worker
     const { getMqttClient } = await import('./mqttWorker.js');
@@ -1395,12 +1500,16 @@ adminRouter.post('/ota/:id/trigger', async (req, res, next) => {
     let triggered = 0;
     for (const dep of deps) {
       // Topic aligné avec la convention firmware : devices/<uid>/cmd/ota
-      const payload = JSON.stringify({
-        cmd:     'update',
-        url:     baseUrl,
-        version: otaUpdate.version,
-        hmac:    otaUpdate.hmac_sha256,
-      });
+      // Firmware legacy : payload = plain URL (pas de JSON — ancien firmware ne parse pas le JSON)
+      // Firmware v2+    : payload = JSON {"cmd":"update","url":"...","version":"...","hmac":"..."}
+      const payload = isLegacyUrl
+        ? firmwareUrl
+        : JSON.stringify({
+            cmd:     'update',
+            url:     firmwareUrl,
+            version: otaUpdate.version,
+            hmac:    otaUpdate.hmac_sha256,
+          });
       // retain:true = l'ESP reçoit la commande même s'il était offline au déclenchement.
       // Le retain est effacé par le mqttWorker dès que l'ESP répond (succès ou échec).
       mqttClient.publish(`devices/${dep.esp_uid}/cmd/ota`, payload, { qos: 1, retain: true });
@@ -1416,6 +1525,21 @@ adminRouter.post('/ota/:id/trigger', async (req, res, next) => {
 
     // Passe la mise à jour en 'deploying'
     await q(`UPDATE ota_updates SET status='deploying' WHERE id=$1`, [req.params.id]);
+
+    // Notifications — prévenir les propriétaires des devices ciblés
+    const { rows: espOwners } = await q(
+      `SELECT DISTINCT e.user_id, e.name AS esp_name, e.esp_uid
+         FROM ota_deployments d
+         JOIN esp_devices e ON e.id = d.esp_id
+        WHERE d.ota_id=$1 AND d.status='triggered' AND e.user_id IS NOT NULL`,
+      [req.params.id]
+    );
+    for (const owner of espOwners) {
+      dispatch('ota_triggered', owner.user_id, {
+        version: otaUpdate.version,
+        esp_name: owner.esp_name || owner.esp_uid,
+      }, { resourceType: 'ota_update', resourceId: req.params.id }).catch(() => {});
+    }
 
     res.json({ ok: true, triggered });
   } catch (e) { next(e); }
@@ -1539,12 +1663,18 @@ adminRouter.get('/rate-limit', async (req, res, next) => {
     res.json({
       global_max:             db.global_max             ?? live.global_max,
       global_window_ms:       db.global_window_ms       ?? live.global_window_ms,
+      admin_max:              db.admin_max              ?? live.admin_max              ?? 300,
+      admin_window_ms:        db.admin_window_ms        ?? live.admin_window_ms        ?? 900000,
       auth_max:               db.auth_max               ?? live.auth_max,
+      auth_window_ms:         db.auth_window_ms         ?? live.auth_window_ms         ?? 900000,
       poll_max:               db.poll_max               ?? live.poll_max,
+      poll_window_ms:         db.poll_window_ms         ?? live.poll_window_ms         ?? 900000,
       contact_max:            db.contact_max            ?? live.contact_max            ?? 5,
       contact_window_ms:      db.contact_window_ms      ?? live.contact_window_ms      ?? 3600000,
       portal_login_max:       db.portal_login_max       ?? live.portal_login_max       ?? 10,
       portal_login_window_ms: db.portal_login_window_ms ?? live.portal_login_window_ms ?? 900000,
+      app_max:                db.app_max                ?? live.app_max                ?? 1000,
+      app_window_ms:          db.app_window_ms          ?? live.app_window_ms          ?? 900000,
       ip_whitelist:           db.ip_whitelist           ?? '',
       updated_at:             db.updated_at             ?? null,
     });
@@ -1555,26 +1685,47 @@ adminRouter.get('/rate-limit/logs', (req, res) => {
   res.json(getRateLimitLogs());
 });
 
+adminRouter.get('/rate-limit/stats', (req, res) => {
+  res.json(getRateLimitStats());
+});
+
+adminRouter.get('/rate-limit/ips', (req, res) => {
+  res.json(getIpTable());
+});
+
+adminRouter.post('/rate-limit/ips/reset', (req, res) => {
+  const { ip, limiter } = req.body || {};
+  if (!ip || !limiter) return res.status(400).json({ error: 'ip and limiter required' });
+  resetIpEntry(ip, limiter);
+  res.json({ ok: true });
+});
+
 adminRouter.post('/rate-limit', async (req, res, next) => {
   try {
-    const { global_max, global_window_ms, auth_max, poll_max, contact_max, contact_window_ms, portal_login_max, portal_login_window_ms, ip_whitelist } = req.body || {};
+    const { global_max, global_window_ms, admin_max, admin_window_ms, auth_max, auth_window_ms, poll_max, poll_window_ms, contact_max, contact_window_ms, portal_login_max, portal_login_window_ms, app_max, app_window_ms, ip_whitelist } = req.body || {};
     // Normalise la whitelist : trim, déduplique, filtre les vides
     const whitelist = (ip_whitelist || '').split(',').map(s => s.trim()).filter(Boolean);
     const whitelistStr = whitelist.join(',');
     await q(
-      `INSERT INTO rate_limit_config (id, global_max, global_window_ms, auth_max, poll_max, contact_max, contact_window_ms, portal_login_max, portal_login_window_ms, ip_whitelist, updated_at)
-       VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+      `INSERT INTO rate_limit_config (id, global_max, global_window_ms, admin_max, admin_window_ms, auth_max, auth_window_ms, poll_max, poll_window_ms, contact_max, contact_window_ms, portal_login_max, portal_login_window_ms, app_max, app_window_ms, ip_whitelist, updated_at)
+       VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
        ON CONFLICT (id) DO UPDATE
-         SET global_max=$1, global_window_ms=$2, auth_max=$3, poll_max=$4, contact_max=$5, contact_window_ms=$6, portal_login_max=$7, portal_login_window_ms=$8, ip_whitelist=$9, updated_at=now()`,
+         SET global_max=$1, global_window_ms=$2, admin_max=$3, admin_window_ms=$4, auth_max=$5, auth_window_ms=$6, poll_max=$7, poll_window_ms=$8, contact_max=$9, contact_window_ms=$10, portal_login_max=$11, portal_login_window_ms=$12, app_max=$13, app_window_ms=$14, ip_whitelist=$15, updated_at=now()`,
       [
         Number(global_max)             || 500,
         Number(global_window_ms)       || 900000,
+        Number(admin_max)              || 300,
+        Number(admin_window_ms)        || 900000,
         Number(auth_max)               || 20,
+        Number(auth_window_ms)         || 900000,
         Number(poll_max)               || 2000,
+        Number(poll_window_ms)         || 900000,
         Number(contact_max)            || 5,
         Number(contact_window_ms)      || 3600000,
         Number(portal_login_max)       || 10,
         Number(portal_login_window_ms) || 900000,
+        Number(app_max)                || 1000,
+        Number(app_window_ms)          || 900000,
         whitelistStr,
       ]
     );
@@ -1642,9 +1793,20 @@ adminRouter.post('/campaigns/send', async (req, res, next) => {
       );
 
       for (const d of devices) {
+        // Incrémenter le badge pour cet utilisateur
+        const { rows: badgeRows } = await q(
+          `INSERT INTO user_badge (user_id, unread_count)
+           VALUES ($1, 1)
+           ON CONFLICT (user_id)
+           DO UPDATE SET unread_count = user_badge.unread_count + 1, updated_at = now()
+           RETURNING unread_count`,
+          [d.user_id]
+        );
+        const badge = Number(badgeRows?.[0]?.unread_count || 1);
+
         if (d.apns_token && isApnsEnabled()) {
           try {
-            const r = await sendAPNS(d.apns_token, title, body, {}, { sandbox: d.sandbox });
+            const r = await sendAPNS(d.apns_token, title, body, { badge }, { sandbox: d.sandbox });
             const ok = r.status === 200;
             results.push({ channel: 'push', ok });
             if (!ok && errors.length < 50) errors.push({ channel: 'push', user_id: d.user_id, error: r.body });
@@ -1655,7 +1817,7 @@ adminRouter.post('/campaigns/send', async (req, res, next) => {
         }
         if (d.fcm_token) {
           try {
-            await sendFCM(d.fcm_token, title, body, {});
+            await sendFCM(d.fcm_token, title, body, { badge });
             results.push({ channel: 'push', ok: true });
           } catch (e) {
             results.push({ channel: 'push', ok: false });

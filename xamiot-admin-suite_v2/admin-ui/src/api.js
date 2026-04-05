@@ -1,4 +1,4 @@
-const API_BASE = 'https://apixam.holiceo.com';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://apixam.holiceo.com';
 
 export function getToken() {
   return localStorage.getItem('xamiot_admin_token') || '';

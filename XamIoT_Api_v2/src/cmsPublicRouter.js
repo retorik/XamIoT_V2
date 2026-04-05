@@ -99,6 +99,17 @@ cmsPublicRouter.get('/pages/:slug', async (req, res, next) => {
 });
 
 /**
+ * GET /public/styles
+ * CSS personnalisé du site public (stocké dans app_config key='custom_css').
+ */
+cmsPublicRouter.get('/styles', async (req, res, next) => {
+  try {
+    const { rows } = await q("SELECT value FROM app_config WHERE key='custom_css'");
+    res.json({ css: rows[0]?.value || '' });
+  } catch (e) { next(e); }
+});
+
+/**
  * GET /public/media/:id
  * Informations publiques d'un média (url_path, dimensions, alt_text).
  */

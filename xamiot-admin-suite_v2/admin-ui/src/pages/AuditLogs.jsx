@@ -2,10 +2,33 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { apiFetch } from '../api.js';
 
 const ACTION_COLORS = {
-  CREATE:                    { background: '#d1fae5', color: '#065f46' },
-  UPDATE:                    { background: '#dbeafe', color: '#1e40af' },
-  DELETE:                    { background: '#fee2e2', color: '#991b1b' },
-  LOGIN:                     { background: '#fef3c7', color: '#92400e' },
+  // Auth
+  LOGIN:                    { background: '#fef3c7', color: '#92400e' },
+  LOGIN_FAILED:             { background: '#fee2e2', color: '#991b1b' },
+  AUTH_SIGNUP:              { background: '#fef3c7', color: '#92400e' },
+  AUTH_VERIFY_EMAIL:        { background: '#fef3c7', color: '#92400e' },
+  PASSWORD_RESET_REQUEST:   { background: '#fef3c7', color: '#92400e' },
+  PASSWORD_RESET_DONE:      { background: '#d1fae5', color: '#065f46' },
+  // Generic CRUD
+  CREATE:              { background: '#d1fae5', color: '#065f46' },
+  UPDATE:              { background: '#dbeafe', color: '#1e40af' },
+  DELETE:              { background: '#fee2e2', color: '#991b1b' },
+  // Commandes / paiements
+  CHECKOUT_CREATE:          { background: '#d1fae5', color: '#065f46' },
+  ORDER_STATUS_UPDATE:      { background: '#dbeafe', color: '#1e40af' },
+  PAYMENT_SUCCEEDED:        { background: '#d1fae5', color: '#065f46' },
+  PAYMENT_FAILED:           { background: '#fee2e2', color: '#991b1b' },
+  WEBHOOK_SIG_FAIL:         { background: '#fee2e2', color: '#991b1b' },
+  // Règles
+  RULE_CREATE:         { background: '#d1fae5', color: '#065f46' },
+  RULE_UPDATE:         { background: '#dbeafe', color: '#1e40af' },
+  RULE_DELETE:         { background: '#fee2e2', color: '#991b1b' },
+  // Adresses
+  ADDRESS_CREATE:      { background: '#d1fae5', color: '#065f46' },
+  ADDRESS_UPDATE:      { background: '#dbeafe', color: '#1e40af' },
+  ADDRESS_DELETE:      { background: '#fee2e2', color: '#991b1b' },
+  // Devices ESP
+  DEVICE_UPDATE:              { background: '#dbeafe', color: '#1e40af' },
   'device.enrolled':           { background: '#d1fae5', color: '#065f46' },
   'device.re_enrolled':        { background: '#dbeafe', color: '#1e40af' },
   'device.reset_mqtt_sent':    { background: '#ede9fe', color: '#5b21b6' },
@@ -14,8 +37,31 @@ const ACTION_COLORS = {
   'device.deleted':            { background: '#fee2e2', color: '#991b1b' },
 };
 
-const RESOURCE_TYPES = ['auth', 'esp_device', 'page', 'product', 'user', 'media', 'ticket', 'config', 'device', 'rule', 'alert', 'ota', 'rma', 'admin'];
-const ACTIONS = ['LOGIN', 'CREATE', 'UPDATE', 'DELETE', 'device.enrolled', 'device.re_enrolled', 'device.reset_mqtt_sent', 'device.reset_mqtt_ack', 'device.reset_mqtt_timeout', 'device.deleted'];
+const RESOURCE_TYPES = [
+  'auth', 'user', 'address',
+  'esp_device', 'device', 'alert_rule', 'alert',
+  'order', 'country',
+  'page', 'product', 'media',
+  'ticket', 'config', 'ota', 'rma', 'admin',
+];
+const ACTIONS = [
+  // Auth & compte
+  'LOGIN', 'LOGIN_FAILED', 'AUTH_SIGNUP', 'AUTH_VERIFY_EMAIL',
+  'PASSWORD_RESET_REQUEST', 'PASSWORD_RESET_DONE',
+  // CRUD génériques (auditMiddleware)
+  'CREATE', 'UPDATE', 'DELETE',
+  // Commandes / paiements
+  'CHECKOUT_CREATE', 'ORDER_STATUS_UPDATE',
+  'PAYMENT_SUCCEEDED', 'PAYMENT_FAILED', 'WEBHOOK_SIG_FAIL',
+  // Règles d'alerte
+  'RULE_CREATE', 'RULE_UPDATE', 'RULE_DELETE',
+  // Adresses
+  'ADDRESS_CREATE', 'ADDRESS_UPDATE', 'ADDRESS_DELETE',
+  // Devices ESP
+  'DEVICE_UPDATE',
+  'device.enrolled', 'device.re_enrolled',
+  'device.reset_mqtt_sent', 'device.reset_mqtt_ack', 'device.reset_mqtt_timeout', 'device.deleted',
+];
 const LIMIT = 50;
 
 function ActionBadge({ action }) {

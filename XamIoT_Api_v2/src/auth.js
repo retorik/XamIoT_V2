@@ -5,12 +5,13 @@ import crypto from 'crypto';
 import { q } from './db.js';
 import { createTransporter, buildFrom, isSmtpReady } from './smtp.js';
 import { config } from './config.js';
+import { dispatch } from './notifDispatcher.js';
 export { renderActivationPage } from './activation-template.js';
 
 // === Config / Env ===
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 const ACTIVATION_EXPIRES = process.env.ACTIVATION_EXPIRES || '2d';
-const RESET_EXPIRES = process.env.RESET_EXPIRES || '2h'; // ex: "15m", "2h", "1d"
+const RESET_EXPIRES = process.env.RESET_EXPIRES || '15m'; // ex: "15m", "2h", "1d"
 
 // URLs dynamiques — lues depuis config.js (DEV ou PROD selon NODE_ENV).
 // Ne jamais hardcoder d'URL ici : utiliser config.urls.*
@@ -116,13 +117,18 @@ export async function signup(email, password, firstName, lastName, phone) {
     ? `${ACTIVATION_LINK_BASE}&token=${encodeURIComponent(token)}`
     : `${ACTIVATION_LINK_BASE}/${encodeURIComponent(token)}`;
 
-  const sent = await sendActivationEmail(user.email, url);
+  // Envoi via le système de templates auto (Système 2)
+  dispatch('account_created', user.id, {
+    first_name: firstName || '', last_name: lastName || '',
+    email: user.email, activation_url: url,
+  }, { resourceType: 'user', resourceId: user.id }).catch(() => {});
 
   const isProd = (process.env.NODE_ENV || 'development') === 'production';
   return {
     ok: true,
-    email_sent: sent,
-    activation_url: (!isProd || !sent) ? url : undefined,
+    user_id: user.id,
+    email_sent: true,
+    activation_url: !isProd ? url : undefined,
   };
 }
 
@@ -153,12 +159,21 @@ export async function activate(token) {
     err.status = 400;
     throw err;
   }
-  return { ok: true };
+
+  // Notification système — compte activé
+  const { rows: uRows } = await q('SELECT first_name, last_name FROM users WHERE id=$1', [userId]).catch(() => ({ rows: [] }));
+  const u = uRows[0] || {};
+  dispatch('account_activated', userId, {
+    first_name: u.first_name || '', email,
+    login_url: config.urls.activationLinkBase.replace('/activate', '/login').replace('/compte/activer', '/compte'),
+  }, { resourceType: 'user', resourceId: userId }).catch(() => {});
+
+  return { ok: true, user_id: userId, email };
 }
 
 export async function resendActivation(email) {
   const emailNorm = (email || '').trim().toLowerCase();
-  const { rows } = await q('SELECT id,email,is_active FROM users WHERE email=$1', [emailNorm]);
+  const { rows } = await q('SELECT id,email,is_active,first_name,last_name FROM users WHERE email=$1', [emailNorm]);
   if (!rows.length) {
     const err = new Error('user_not_found');
     err.status = 404;
@@ -176,7 +191,11 @@ export async function resendActivation(email) {
     ? `${ACTIVATION_LINK_BASE}&token=${encodeURIComponent(token)}`
     : `${ACTIVATION_LINK_BASE}/${encodeURIComponent(token)}`;
 
-  await sendActivationEmail(u.email, url);
+  // Renvoi via le système de templates auto (même template que l'inscription)
+  dispatch('account_created', u.id, {
+    first_name: u.first_name || '', last_name: u.last_name || '',
+    email: u.email, activation_url: url,
+  }, { resourceType: 'user', resourceId: u.id }).catch(() => {});
   return { ok: true };
 }
 
@@ -229,7 +248,7 @@ export async function requestPasswordReset(email) {
   const emailNorm = (email || '').trim().toLowerCase();
   if (!emailNorm) throw Object.assign(new Error('email_required'), { status: 400 });
 
-  const { rows } = await q('SELECT id,email FROM users WHERE email=$1 LIMIT 1', [emailNorm]);
+  const { rows } = await q('SELECT id,email,first_name FROM users WHERE email=$1 LIMIT 1', [emailNorm]);
   if (!rows.length) {
     // Réponse neutre
     return { ok: true };
@@ -249,7 +268,12 @@ export async function requestPasswordReset(email) {
   );
 
   const url = `${RESET_LINK_BASE}${encodeURIComponent(token)}`;
-  await sendResetEmail(user.email, url, RESET_EXPIRES);
+
+  // Envoi via le système de templates auto (Système 2)
+  dispatch('password_reset', user.id, {
+    first_name: user.first_name || '', email: user.email,
+    reset_url: url, expires_in: RESET_EXPIRES,
+  }, { resourceType: 'user', resourceId: user.id }).catch(() => {});
 
   return { ok: true };
 }
@@ -279,6 +303,14 @@ export async function resetPasswordWithToken(token, newPassword) {
   const pass_hash = await argon2.hash(newPassword);
   await q('UPDATE users SET pass_hash=$1 WHERE id=$2', [pass_hash, match.user_id]);
   await q('UPDATE password_resets SET used_at=now() WHERE id=$1', [match.id]);
+
+  // Notification système — mot de passe modifié
+  const { rows: pRows } = await q('SELECT email, first_name FROM users WHERE id=$1', [match.user_id]).catch(() => ({ rows: [] }));
+  if (pRows[0]) {
+    dispatch('password_changed', match.user_id, {
+      first_name: pRows[0].first_name || '', email: pRows[0].email,
+    }, { resourceType: 'user', resourceId: match.user_id }).catch(() => {});
+  }
 
   return { ok: true };
 }

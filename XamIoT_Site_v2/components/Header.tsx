@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import { getMenuItems, getSiteConfig } from '@/lib/api';
 import { getLang } from '@/lib/lang';
 import LangSelector from '@/components/LangSelector';
+import AccountStatus from '@/components/AccountStatus';
+import MobileMenu from '@/components/MobileMenu';
 
 export default async function Header() {
   const lang = getLang(cookies());
@@ -49,15 +51,18 @@ export default async function Header() {
           >
             Support
           </a>
-          <a
-            href={process.env.NEXT_PUBLIC_PORTAL_URL || 'https://xamcli.holiceo.com'}
-            className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors"
-          >
-            Mon espace
-          </a>
+          <Link href="/panier" className="text-sm font-medium text-gray-600 hover:text-brand-600 transition-colors">
+            Panier
+          </Link>
+          <AccountStatus />
         </nav>
 
         <div className="flex items-center gap-3">
+          <MobileMenu
+            menuItems={menuItems}
+            lang={lang}
+            portalUrl={process.env.NEXT_PUBLIC_PORTAL_URL || 'https://portail.xamiot.com'}
+          />
           <LangSelector currentLang={lang} />
           {siteConfig.appstore_url && (
             <a

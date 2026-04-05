@@ -39,6 +39,13 @@ local.properties
 # ─── Audit (fichiers temporaires) ───
 audit/
 
+# ─── Migration — secrets (jamais commiter) ───
+docs/secrets_generated.md
+
 # ─── Bruno (client HTTP) ───
 Bruno/
+
+# ─── Claude / prompts internes ───
+.claude/
+_prompts/
 

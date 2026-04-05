@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import ProductsManager from './ProductsManager.jsx';
 import OrdersManager from './OrdersManager.jsx';
+import CountriesManager from './CountriesManager.jsx';
+import PaymentLogs from './PaymentLogs.jsx';
 
 const TABS = [
-  { key: 'produits',   label: 'Produits' },
   { key: 'commandes',  label: 'Commandes' },
+  { key: 'produits',   label: 'Produits' },
+  { key: 'paiements',  label: 'Logs commandes' },
+  { key: 'pays',       label: 'Pays & Livraison' },
 ];
 
 export default function BoutiqueWrapper() {
-  const [tab, setTab] = useState('produits');
+  const [tab, setTab] = useState('commandes');
 
   return (
     <div className="container">
@@ -32,8 +36,10 @@ export default function BoutiqueWrapper() {
         ))}
       </div>
 
-      {tab === 'produits'  && <ProductsManager embedded />}
-      {tab === 'commandes' && <OrdersManager embedded />}
+      {tab === 'produits'   && <ProductsManager embedded />}
+      {tab === 'commandes'  && <OrdersManager embedded />}
+      {tab === 'paiements'  && <PaymentLogs />}
+      {tab === 'pays'       && <CountriesManager />}
     </div>
   );
 }
