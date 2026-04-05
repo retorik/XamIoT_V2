@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useEditor, EditorContent, useEditorState } from '@tiptap/react';
+import { Mark } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
@@ -26,47 +27,108 @@ const cellAttrs = parent => ({
 const TableCellExt   = TableCell.extend({   addAttributes() { return cellAttrs(this.parent); } });
 const TableHeaderExt = TableHeader.extend({ addAttributes() { return cellAttrs(this.parent); } });
 
+const Anchor = Mark.create({
+  name: 'anchor',
+  keepOnSplit: false,
+  addAttributes() {
+    return { id: { default: null, parseHTML: el => (el.getAttribute('id') || '').replace(/^#+/, '') || null, renderHTML: attrs => attrs.id ? { id: attrs.id } : {} } };
+  },
+  parseHTML() { return [{ tag: 'a[id]:not([href])' }]; },
+  renderHTML({ HTMLAttributes }) { return ['a', { ...HTMLAttributes, class: 'tiptap-anchor' }, 0]; },
+  addCommands() {
+    return {
+      setAnchor:    attrs => ({ commands }) => commands.setMark(this.name, attrs),
+      unsetAnchor:  ()    => ({ commands }) => commands.unsetMark(this.name),
+    };
+  },
+});
+
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://apixam.holiceo.com';
 const LANGS = ['fr', 'en', 'es'];
 const LANG_LABEL = { fr: '🇫🇷 Français', en: '🇬🇧 English', es: '🇪🇸 Español' };
 
 /* ── Picker médiathèque (modal inline) ─────────────────── */
+const PICKER_ROOT = '__root__';
+function isValidPickerFolder(f) { return f && f !== '/' && f !== '' && f !== PICKER_ROOT; }
+
 function MediaPickerModal({ onPick, onClose }) {
-  const [files, setFiles] = React.useState([]);
-  const [search, setSearch] = React.useState('');
+  const [files, setFiles]           = React.useState([]);
+  const [search, setSearch]         = React.useState('');
+  const [currentFolder, setCurrentFolder] = React.useState(PICKER_ROOT);
+
   React.useEffect(() => {
     apiFetch('/admin/cms/media').then(setFiles).catch(() => {});
   }, []);
-  const filtered = files.filter(f =>
-    f.original_name?.toLowerCase().includes(search.toLowerCase())
-  );
+
+  const savedFolders = React.useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('xamiot_media_folders') || '[]'); } catch { return []; }
+  }, []);
+  const fileFolders = [...new Set(files.map(f => f.folder).filter(isValidPickerFolder))];
+  const allFolders  = [...new Set([...savedFolders, ...fileFolders])].filter(isValidPickerFolder);
+
+  const images = files.filter(f => f.mime_type?.startsWith('image/'));
+  const filtered = images.filter(f => {
+    const inFolder = currentFolder === PICKER_ROOT
+      ? !isValidPickerFolder(f.folder)
+      : f.folder === currentFolder;
+    return inFolder && f.original_name?.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const folderBtnStyle = (active) => ({
+    display: 'block', width: '100%', textAlign: 'left',
+    padding: '6px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12,
+    background: active ? '#2563eb' : 'transparent', color: active ? '#fff' : '#374151',
+    fontWeight: active ? 600 : 400,
+  });
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 10, padding: 20, width: 640, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+      <div style={{ background: '#fff', borderRadius: 10, width: 740, maxHeight: '82vh', display: 'flex', flexDirection: 'column' }}
         onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <strong>Choisir une image</strong>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
+          <strong style={{ fontSize: 15 }}>Médiathèque</strong>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#6b7280' }}>✕</button>
         </div>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher…"
-          style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 10px', marginBottom: 12, fontSize: 13 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, overflowY: 'auto' }}>
-          {filtered.filter(f => f.mime_type?.startsWith('image/')).map(f => (
-            <div key={f.id} onClick={() => { onPick(`${API_BASE}${f.url_path}`); onClose(); }}
-              style={{ cursor: 'pointer', border: '2px solid transparent', borderRadius: 6, overflow: 'hidden' }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = '#2563eb'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
-              <img src={`${API_BASE}${f.url_path}`} alt={f.alt_text || f.original_name}
-                style={{ width: '100%', height: 80, objectFit: 'cover', display: 'block' }} />
-              <div style={{ padding: '3px 5px', fontSize: 10, color: '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {f.original_name}
-              </div>
+        {/* Search */}
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid #e5e7eb' }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher…"
+            style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 10px', fontSize: 13, boxSizing: 'border-box' }} />
+        </div>
+        {/* Body */}
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          {/* Sidebar dossiers */}
+          <div style={{ width: 160, borderRight: '1px solid #e5e7eb', padding: '10px 8px', overflowY: 'auto', flexShrink: 0 }}>
+            <button style={folderBtnStyle(currentFolder === PICKER_ROOT)} onClick={() => setCurrentFolder(PICKER_ROOT)}>
+              🗂 Médiathèque
+            </button>
+            {allFolders.map(folder => (
+              <button key={folder} style={folderBtnStyle(currentFolder === folder)} onClick={() => setCurrentFolder(folder)}>
+                📁 {folder}
+              </button>
+            ))}
+          </div>
+          {/* Grille images */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              {filtered.map(f => (
+                <div key={f.id} onClick={() => { onPick(`${API_BASE}${f.url_path}`); onClose(); }}
+                  style={{ cursor: 'pointer', border: '2px solid transparent', borderRadius: 6, overflow: 'hidden' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = '#2563eb'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
+                  <img src={`${API_BASE}${f.url_path}`} alt={f.alt_text || f.original_name}
+                    style={{ width: '100%', height: 80, objectFit: 'cover', display: 'block' }} />
+                  <div style={{ padding: '3px 5px', fontSize: 10, color: '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {f.original_name}
+                  </div>
+                </div>
+              ))}
+              {filtered.length === 0 && (
+                <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#9ca3af', padding: 24 }}>Aucune image</div>
+              )}
             </div>
-          ))}
-          {filtered.filter(f => f.mime_type?.startsWith('image/')).length === 0 && (
-            <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#9ca3af', padding: 24 }}>Aucune image</div>
-          )}
+          </div>
         </div>
       </div>
     </div>
@@ -75,26 +137,19 @@ function MediaPickerModal({ onPick, onClose }) {
 
 /* ── Modal d'insertion de lien ─────────────────────────── */
 function LinkModal({ editor, onClose }) {
-  const [tab, setTab]           = React.useState('url');
-  const [url, setUrl]           = React.useState('');
-  const [newTab, setNewTab]     = React.useState(false);
-  const [selectedSlug, setSelectedSlug] = React.useState('');
-  const [pages, setPages]       = React.useState([]);
+  // Lire les attributs de façon synchrone au moment du rendu (avant tout effet)
+  const existingAttrs = editor.getAttributes('link');
+  const existingHref  = existingAttrs.href || '';
+  const initNewTab    = existingAttrs.target === '_blank';
+  const initTab       = (existingHref && existingHref.startsWith('/') && !existingHref.startsWith('//')) ? 'page' : 'url';
+  const initUrl       = initTab === 'url'  ? existingHref : '';
+  const initSlug      = initTab === 'page' ? existingHref.replace(/^\//, '') : '';
 
-  const existingHref = editor.getAttributes('link').href || '';
-
-  React.useEffect(() => {
-    if (existingHref) {
-      if (existingHref.startsWith('/') && !existingHref.startsWith('//')) {
-        setTab('page');
-        setSelectedSlug(existingHref.replace(/^\//, ''));
-      } else {
-        setTab('url');
-        setUrl(existingHref);
-      }
-      setNewTab(editor.getAttributes('link').target === '_blank');
-    }
-  }, []);
+  const [tab, setTab]                   = React.useState(initTab);
+  const [url, setUrl]                   = React.useState(initUrl);
+  const [newTab, setNewTab]             = React.useState(initNewTab);
+  const [selectedSlug, setSelectedSlug] = React.useState(initSlug);
+  const [pages, setPages]               = React.useState([]);
 
   React.useEffect(() => {
     apiFetch('/admin/cms/pages').then(data => setPages(data || [])).catch(() => {});
@@ -103,12 +158,12 @@ function LinkModal({ editor, onClose }) {
   function apply() {
     const href = tab === 'url' ? url.trim() : (selectedSlug ? `/${selectedSlug}` : '');
     if (!href) return;
-    editor.chain().focus().setLink({ href, target: newTab ? '_blank' : null }).run();
+    editor.chain().focus().extendMarkRange('link').setLink({ href, target: newTab ? '_blank' : null }).run();
     onClose();
   }
 
   function remove() {
-    editor.chain().focus().unsetLink().run();
+    editor.chain().focus().extendMarkRange('link').unsetLink().run();
     onClose();
   }
 
@@ -164,6 +219,58 @@ function LinkModal({ editor, onClose }) {
             Appliquer
           </button>
           {existingHref && (
+            <button onMouseDown={e => { e.preventDefault(); remove(); }}
+              style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: '1px solid #fca5a5', background: '#fee2e2', color: '#b91c1c', cursor: 'pointer' }}>
+              Supprimer
+            </button>
+          )}
+          <button onMouseDown={e => { e.preventDefault(); onClose(); }}
+            style={{ padding: '6px 14px', fontSize: 13, borderRadius: 6, border: '1px solid #d1d5db', background: '#f3f4f6', color: '#374151', cursor: 'pointer' }}>
+            Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Modal ancre ───────────────────────────────────────── */
+function AnchorModal({ editor, anchorId, onClose }) {
+  const [id, setId] = React.useState(anchorId || '');
+
+  function apply() {
+    const trimmed = id.trim().replace(/^#+/, '').replace(/\s+/g, '-');
+    if (trimmed) editor.chain().focus().setAnchor({ id: trimmed }).run();
+    else editor.chain().focus().unsetAnchor().run();
+    onClose();
+  }
+  function remove() { editor.chain().focus().unsetAnchor().run(); onClose(); }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 10, padding: 20, width: 380 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <strong style={{ fontSize: 15 }}>⚓ Ancre</strong>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+        </div>
+        <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>
+          Sélectionnez du texte puis définissez un identifiant d'ancre. Le lien correspondant sera <code style={{ background: '#f3f4f6', padding: '1px 4px', borderRadius: 3 }}>#identifiant</code>.
+        </p>
+        <input
+          value={id}
+          onChange={e => setId(e.target.value)}
+          placeholder="ex: section-contact"
+          autoFocus
+          onKeyDown={e => e.key === 'Enter' && apply()}
+          style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '7px 10px', fontSize: 13, boxSizing: 'border-box', marginBottom: 14 }}
+        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onMouseDown={e => { e.preventDefault(); apply(); }}
+            style={{ padding: '6px 18px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer' }}>
+            Appliquer
+          </button>
+          {anchorId && (
             <button onMouseDown={e => { e.preventDefault(); remove(); }}
               style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: '1px solid #fca5a5', background: '#fee2e2', color: '#b91c1c', cursor: 'pointer' }}>
               Supprimer
@@ -267,8 +374,9 @@ const FONTS = [
   { label: 'Lucida Console', value: "'Lucida Console', monospace" },
 ];
 
-function Toolbar({ editor, isInTable, isImage, fontFamily, onOpenImagePicker, sticky }) {
-  const [linkModalOpen, setLinkModalOpen] = React.useState(false);
+function Toolbar({ editor, isInTable, isImage, fontFamily, isAnchor, anchorId, onOpenImagePicker, sticky }) {
+  const [linkModalOpen,   setLinkModalOpen]   = React.useState(false);
+  const [anchorModalOpen, setAnchorModalOpen] = React.useState(false);
   if (!editor) return null;
   const btn = (action, label, active) => (
     <button
@@ -295,9 +403,22 @@ function Toolbar({ editor, isInTable, isImage, fontFamily, onOpenImagePicker, st
     editor.view.dispatch(tr);
   }
 
+  function alignImage(align) {
+    const { selection } = editor.state;
+    if (selection.node?.type.name !== 'image') return;
+    const pos      = selection.from;
+    const current  = selection.node.attrs.align;
+    const newAlign = current === align ? null : align;
+    const tr = editor.state.tr.setNodeMarkup(pos, null, { ...selection.node.attrs, align: newAlign });
+    editor.view.dispatch(tr);
+  }
+
+  const imgAlign = isImage ? editor.state.selection.node?.attrs?.align : null;
+
   return (
     <>
-    {linkModalOpen && <LinkModal editor={editor} onClose={() => setLinkModalOpen(false)} />}
+    {linkModalOpen   && <LinkModal   editor={editor} onClose={() => setLinkModalOpen(false)} />}
+    {anchorModalOpen && <AnchorModal editor={editor} anchorId={anchorId} onClose={() => setAnchorModalOpen(false)} />}
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', padding: '8px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', borderRadius: '6px 6px 0 0', ...(sticky ? { position: 'sticky', top: 36, zIndex: 10, boxShadow: '0 2px 4px rgba(0,0,0,.06)' } : {}) }}>
       {btn(() => editor.chain().focus().toggleBold().run(),        'G',  editor.isActive('bold'))}
       {btn(() => editor.chain().focus().toggleItalic().run(),      'I',  editor.isActive('italic'))}
@@ -316,9 +437,13 @@ function Toolbar({ editor, isInTable, isImage, fontFamily, onOpenImagePicker, st
       {btn(() => editor.chain().focus().setTextAlign('center').run(), '↔', editor.isActive({ textAlign: 'center' }))}
       {btn(() => editor.chain().focus().setTextAlign('right').run(),  '➡', editor.isActive({ textAlign: 'right' }))}
       <span style={{ borderLeft: '1px solid #d1d5db', margin: '0 2px' }} />
-      {btn(() => setLinkModalOpen(true), editor.isActive('link') ? '🔗 Modifier' : '🔗', editor.isActive('link'))}
+      {btn(() => setLinkModalOpen(true),   editor.isActive('link')   ? '🔗 Modifier' : '🔗',    editor.isActive('link'))}
+      {btn(() => setAnchorModalOpen(true), isAnchor ? '⚓ Modifier' : '⚓',                        isAnchor)}
       {btn(addImage, '🖼 Insérer', false)}
       {isImage && btn(resizeImage, '↔ Taille', false)}
+      {isImage && btn(() => alignImage('left'),   '⬅ Img',  imgAlign === 'left')}
+      {isImage && btn(() => alignImage('center'), '↔ Img',  imgAlign === 'center')}
+      {isImage && btn(() => alignImage('right'),  '➡ Img',  imgAlign === 'right')}
       <span style={{ borderLeft: '1px solid #d1d5db', margin: '0 2px' }} />
       {/* Police */}
       <select value={fontFamily}
@@ -411,8 +536,28 @@ export default function PageEditor() {
     extensions: [
       StarterKit,
       Underline,
-      Image.extend({ addAttributes() { return { ...this.parent?.(), width: { default: null, parseHTML: el => el.getAttribute('width'), renderHTML: attrs => attrs.width ? { width: attrs.width, style: `width:${attrs.width}` } : {} } }; } }),
-      Link.configure({ openOnClick: false }),
+      Image.extend({ addAttributes() { return { ...this.parent?.(),
+        width: { default: null, parseHTML: el => el.getAttribute('width'), renderHTML: attrs => attrs.width ? { width: attrs.width, style: `width:${attrs.width}` } : {} },
+        align: { default: null, parseHTML: el => el.getAttribute('data-align'), renderHTML: attrs => {
+          if (!attrs.align) return {};
+          const style = attrs.align === 'center' ? 'display:block;margin-left:auto;margin-right:auto'
+                      : attrs.align === 'left'   ? 'float:left;margin-right:1em;margin-bottom:0.5em'
+                      : attrs.align === 'right'  ? 'float:right;margin-left:1em;margin-bottom:0.5em' : '';
+          return style ? { 'data-align': attrs.align, style } : {};
+        }},
+      }; } }),
+      Link.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            target: {
+              default: null,
+              parseHTML: el => el.getAttribute('target') || null,
+              renderHTML: attrs => attrs.target ? { target: attrs.target } : {},
+            },
+          };
+        },
+      }).configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer nofollow' } }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Table.configure({ resizable: true }),
       TableRow,
@@ -421,6 +566,7 @@ export default function PageEditor() {
       TextStyle,
       Color.configure({ types: ['textStyle'] }),
       FontFamily.configure({ types: ['textStyle'] }),
+      Anchor,
     ],
     content: translations[activeLang]?.content || '',
     onUpdate: ({ editor: e }) => {
@@ -436,8 +582,28 @@ export default function PageEditor() {
     extensions: [
       StarterKit,
       Underline,
-      Image.extend({ addAttributes() { return { ...this.parent?.(), width: { default: null, parseHTML: el => el.getAttribute('width'), renderHTML: attrs => attrs.width ? { width: attrs.width, style: `width:${attrs.width}` } : {} } }; } }),
-      Link.configure({ openOnClick: false }),
+      Image.extend({ addAttributes() { return { ...this.parent?.(),
+        width: { default: null, parseHTML: el => el.getAttribute('width'), renderHTML: attrs => attrs.width ? { width: attrs.width, style: `width:${attrs.width}` } : {} },
+        align: { default: null, parseHTML: el => el.getAttribute('data-align'), renderHTML: attrs => {
+          if (!attrs.align) return {};
+          const style = attrs.align === 'center' ? 'display:block;margin-left:auto;margin-right:auto'
+                      : attrs.align === 'left'   ? 'float:left;margin-right:1em;margin-bottom:0.5em'
+                      : attrs.align === 'right'  ? 'float:right;margin-left:1em;margin-bottom:0.5em' : '';
+          return style ? { 'data-align': attrs.align, style } : {};
+        }},
+      }; } }),
+      Link.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            target: {
+              default: null,
+              parseHTML: el => el.getAttribute('target') || null,
+              renderHTML: attrs => attrs.target ? { target: attrs.target } : {},
+            },
+          };
+        },
+      }).configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer nofollow' } }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Table.configure({ resizable: true }),
       TableRow,
@@ -446,6 +612,7 @@ export default function PageEditor() {
       TextStyle,
       Color.configure({ types: ['textStyle'] }),
       FontFamily.configure({ types: ['textStyle'] }),
+      Anchor,
     ],
     content: translations[activeLang]?.content_after || '',
     onUpdate: ({ editor: e }) => {
@@ -464,6 +631,8 @@ export default function PageEditor() {
       isInTable:  e?.isActive('table') ?? false,
       isImage:    e?.state?.selection.node?.type.name === 'image',
       fontFamily: e?.getAttributes('textStyle')?.fontFamily ?? '',
+      isAnchor:   e?.isActive('anchor') ?? false,
+      anchorId:   e?.getAttributes('anchor')?.id ?? '',
     }),
   });
   const toolbarAfterState = useEditorState({
@@ -472,6 +641,8 @@ export default function PageEditor() {
       isInTable:  e?.isActive('table') ?? false,
       isImage:    e?.state?.selection.node?.type.name === 'image',
       fontFamily: e?.getAttributes('textStyle')?.fontFamily ?? '',
+      isAnchor:   e?.isActive('anchor') ?? false,
+      anchorId:   e?.getAttributes('anchor')?.id ?? '',
     }),
   });
 
@@ -688,7 +859,7 @@ export default function PageEditor() {
 
         <label style={{ display: 'block', fontWeight: 500, fontSize: 14, marginBottom: 4 }}>Contenu (avant formulaire)</label>
         <div style={{ border: '1px solid #d1d5db', borderRadius: 6, marginBottom: 12 }}>
-          <Toolbar editor={editor} isInTable={toolbarState?.isInTable ?? false} isImage={toolbarState?.isImage ?? false} fontFamily={toolbarState?.fontFamily ?? ''} onOpenImagePicker={cb => setImagePickerCb(() => cb)} sticky />
+          <Toolbar editor={editor} isInTable={toolbarState?.isInTable ?? false} isImage={toolbarState?.isImage ?? false} fontFamily={toolbarState?.fontFamily ?? ''} isAnchor={toolbarState?.isAnchor ?? false} anchorId={toolbarState?.anchorId ?? ''} onOpenImagePicker={cb => setImagePickerCb(() => cb)} sticky />
           <EditorContent editor={editor} style={{ minHeight: 250, padding: '12px', outline: 'none' }} className="tiptap-editor" />
         </div>
 
@@ -699,7 +870,7 @@ export default function PageEditor() {
           </span>
         </label>
         <div style={{ border: '1px solid #d1d5db', borderRadius: 6, marginBottom: 12 }}>
-          <Toolbar editor={editorAfter} isInTable={toolbarAfterState?.isInTable ?? false} isImage={toolbarAfterState?.isImage ?? false} fontFamily={toolbarAfterState?.fontFamily ?? ''} onOpenImagePicker={cb => setImagePickerCb(() => cb)} />
+          <Toolbar editor={editorAfter} isInTable={toolbarAfterState?.isInTable ?? false} isImage={toolbarAfterState?.isImage ?? false} fontFamily={toolbarAfterState?.fontFamily ?? ''} isAnchor={toolbarAfterState?.isAnchor ?? false} anchorId={toolbarAfterState?.anchorId ?? ''} onOpenImagePicker={cb => setImagePickerCb(() => cb)} />
           <EditorContent editor={editorAfter} style={{ minHeight: 120, padding: '12px', outline: 'none' }} className="tiptap-editor" />
         </div>
 
@@ -720,7 +891,7 @@ export default function PageEditor() {
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <button onClick={save} disabled={saving}
           style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 24px', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
           {saving ? 'Enregistrement…' : 'Enregistrer'}
@@ -729,6 +900,11 @@ export default function PageEditor() {
           style={{ background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, padding: '10px 18px', fontSize: 14, cursor: 'pointer' }}>
           Annuler
         </button>
+        {msg && (
+          <span style={{ fontSize: 13, fontWeight: 500, color: msg.type === 'success' ? '#16a34a' : '#b91c1c' }}>
+            {msg.type === 'success' ? '✓ ' : '✕ '}{msg.text}
+          </span>
+        )}
       </div>
 
       {/* Style TipTap minimal */}
@@ -751,6 +927,8 @@ export default function PageEditor() {
         .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: #93c5fd; pointer-events: none; }
         .resize-cursor { cursor: col-resize; }
         .tableWrapper { overflow-x: auto; }
+        .tiptap a.tiptap-anchor { color: inherit; text-decoration: none; border-bottom: 2px dashed #f59e0b; background: #fef3c7; padding: 0 2px; border-radius: 2px; cursor: default; }
+        .tiptap a.tiptap-anchor::before { content: '⚓'; font-size: .7em; margin-right: 2px; opacity: .6; }
       `}</style>
       {imagePickerCb && (
         <MediaPickerModal onPick={imagePickerCb} onClose={() => setImagePickerCb(null)} />

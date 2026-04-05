@@ -28,6 +28,18 @@
 
 | Date | Item |
 |---|---|
+| 2026-04-05 | Admin UI — Médiathèque : dossiers virtuels, drag & drop upload, déplacement images |
+| 2026-04-05 | Admin UI — Médiathèque : renommer et supprimer dossiers (avec déplacement ou suppression des fichiers) |
+| 2026-04-05 | Admin UI — Picker image (PageEditor, ProductEditor, Settings) : navigation par dossiers |
+| 2026-04-05 | Admin UI — PageEditor : alignement images (gauche/centre/droite), support ancres in-page |
+| 2026-04-05 | Admin UI — PageEditor : couleurs de liens séparées par section (header, body, footer) |
+| 2026-04-05 | Admin UI — PageEditor : message de confirmation inline après enregistrement |
+| 2026-04-05 | Admin UI — PageEditor : fix bug "Ouvrir dans un nouvel onglet" toujours coché (HTMLAttributes TipTap) |
+| 2026-04-05 | Admin UI — Utilisateurs : en-tête noir, tri par colonne, alternance lignes, hover atténué |
+| 2026-04-05 | API — mobile_enrolled : mail envoyé uniquement sur nouveau token (détection via xmax=0) |
+| 2026-04-05 | API — sysNotifEngine : fix bug SQL "syntax error at or near WHERE" (double clause WHERE) |
+| 2026-04-05 | API — PATCH /admin/cms/media : mise à jour partielle (alt_text et/ou folder séparément) |
+| 2026-04-05 | PROD DB — nettoyage de tous les target="_blank" sur les liens CMS (6 pages corrigées) |
 | 2026-03-31 | Déploiement VPS 192.168.1.6 : DB xamiot_v2 + user xamiot_v2_user créés |
 | 2026-03-31 | Déploiement VPS : /home/jeremy/XamIoT_v2/{api,admin,mosquitto} + docker-compose.prod.yml |
 | 2026-03-31 | API live sur https://apixam.holiceo.com via Traefik + Let's Encrypt |

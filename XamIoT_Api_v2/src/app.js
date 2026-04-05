@@ -436,19 +436,21 @@ app.post('/devices', requireAuth, async (req, res) => {
            model=excluded.model, os_version=excluded.os_version, timezone=excluded.timezone,
            app_version=excluded.app_version, app_build_number=excluded.app_build_number,
            is_active=true, last_seen=now()
-     RETURNING id`,
+     RETURNING id, (xmax = 0) AS is_new_token`,
     [req.user.sub, name || null, platform, apns_token || null, fcm_token || null, bundle_id, sandbox, model, os_version, timezone, app_version, app_build_number ?? null]
   );
 
-  // Notification — enrôlement mobile
-  const { rows: uRows } = await q('SELECT first_name FROM users WHERE id=$1', [req.user.sub]).catch(() => ({ rows: [] }));
-  dispatch('mobile_enrolled', req.user.sub, {
-    first_name: uRows[0]?.first_name || '',
-    device_name: name || platform || 'Mobile',
-    platform: platform,
-    model: model || '',
-    app_version: app_version || '',
-  }, { resourceType: 'mobile_device', resourceId: rows[0].id }).catch(() => {});
+  // Notification — enrôlement mobile uniquement si le token est nouveau
+  if (rows[0].is_new_token) {
+    const { rows: uRows } = await q('SELECT first_name FROM users WHERE id=$1', [req.user.sub]).catch(() => ({ rows: [] }));
+    dispatch('mobile_enrolled', req.user.sub, {
+      first_name: uRows[0]?.first_name || '',
+      device_name: name || platform || 'Mobile',
+      platform: platform,
+      model: model || '',
+      app_version: app_version || '',
+    }, { resourceType: 'mobile_device', resourceId: rows[0].id }).catch(() => {});
+  }
 
   res.json({ device_id: rows[0].id });
 });

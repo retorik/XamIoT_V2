@@ -2,10 +2,23 @@ import React, { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../api.js';
 import { useNavigate } from 'react-router-dom';
 
+const COLS = [
+  { key: 'email',        label: 'Email' },
+  { key: 'name',         label: 'Nom' },
+  { key: 'is_active',    label: 'Actif' },
+  { key: 'is_admin',     label: 'Admin' },
+  { key: 'mobile_count', label: 'Mobiles' },
+  { key: 'esp_count',    label: 'ESP' },
+  { key: 'alert_count',  label: 'Alertes' },
+  { key: 'created_at',   label: 'Créé' },
+];
+
 export default function Users() {
-  const [q, setQ] = useState('');
-  const [rows, setRows] = useState([]);
-  const [err, setErr] = useState('');
+  const [q, setQ]           = useState('');
+  const [rows, setRows]     = useState([]);
+  const [err, setErr]       = useState('');
+  const [sortCol, setSortCol] = useState('created_at');
+  const [sortAsc, setSortAsc] = useState(false);
   const nav = useNavigate();
 
   async function load() {
@@ -31,6 +44,23 @@ export default function Users() {
     if (e.key === 'Enter') load();
   }
 
+  function toggleSort(col) {
+    if (sortCol === col) setSortAsc(a => !a);
+    else { setSortCol(col); setSortAsc(true); }
+  }
+
+  const sorted = [...rows].sort((a, b) => {
+    let av = a[sortCol], bv = b[sortCol];
+    if (sortCol === 'name') {
+      av = [a.first_name, a.last_name].filter(Boolean).join(' ').toLowerCase();
+      bv = [b.first_name, b.last_name].filter(Boolean).join(' ').toLowerCase();
+    }
+    if (av === null || av === undefined) av = '';
+    if (bv === null || bv === undefined) bv = '';
+    const cmp = typeof av === 'string' ? av.localeCompare(bv) : (av > bv ? 1 : av < bv ? -1 : 0);
+    return sortAsc ? cmp : -cmp;
+  });
+
   return (
     <div className="container">
       <h2>Utilisateurs</h2>
@@ -53,24 +83,36 @@ export default function Users() {
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <table className="table">
           <thead>
-            <tr>
-              <th>Email</th>
-              <th>Nom</th>
-              <th>Actif</th>
-              <th>Admin</th>
-              <th>Mobiles</th>
-              <th>ESP</th>
-              <th>Alertes</th>
-              <th>Créé</th>
+            <tr style={{ background: '#111827' }}>
+              {COLS.map(col => (
+                <th
+                  key={col.key}
+                  onClick={() => toggleSort(col.key)}
+                  style={{
+                    background: '#111827',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    whiteSpace: 'nowrap',
+                    padding: '10px 12px',
+                  }}
+                >
+                  {col.label}
+                  {sortCol === col.key && (
+                    <span style={{ marginLeft: 4, opacity: 0.8 }}>{sortAsc ? '↑' : '↓'}</span>
+                  )}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map(u => (
+            {sorted.map((u, idx) => (
               <tr
                 key={u.id}
                 onClick={() => nav(`/users/${u.id}`)}
-                style={{ cursor: 'pointer' }}
-                className="tr-hover"
+                style={{ cursor: 'pointer', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#e0e7ff'}
+                onMouseLeave={e => e.currentTarget.style.background = idx % 2 === 0 ? '#fff' : '#f8fafc'}
               >
                 <td>{u.email}</td>
                 <td>{[u.first_name, u.last_name].filter(Boolean).join(' ') || '—'}</td>

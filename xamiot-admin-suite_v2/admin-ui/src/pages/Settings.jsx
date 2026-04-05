@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../api.js';
 
 const TABS = [
@@ -1322,10 +1322,15 @@ const EDITABLE_KEYS = [
 
 const MEDIA_BASE = import.meta.env.VITE_API_BASE || 'https://apixam.holiceo.com';
 
+const PICKER_ROOT = '__root__';
+function isValidPickerFolder(f) { return f && f !== '/' && f !== '' && f !== PICKER_ROOT; }
+
 function MediaPickerModal({ onSelect, onClose }) {
-  const [media, setMedia]     = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr]         = useState('');
+  const [media, setMedia]           = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [err, setErr]               = useState('');
+  const [search, setSearch]         = useState('');
+  const [currentFolder, setCurrentFolder] = useState(PICKER_ROOT);
 
   useEffect(() => {
     apiFetch('/admin/cms/media')
@@ -1334,90 +1339,88 @@ function MediaPickerModal({ onSelect, onClose }) {
       .finally(() => setLoading(false));
   }, []);
 
+  const savedFolders = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('xamiot_media_folders') || '[]'); } catch { return []; }
+  }, []);
+  const fileFolders = [...new Set(media.map(f => f.folder).filter(isValidPickerFolder))];
+  const allFolders  = [...new Set([...savedFolders, ...fileFolders])].filter(isValidPickerFolder);
+
+  const filtered = media.filter(item => {
+    const inFolder = currentFolder === PICKER_ROOT
+      ? !isValidPickerFolder(item.folder)
+      : item.folder === currentFolder;
+    const name = item.original_name || item.filename || '';
+    return inFolder && name.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const folderBtnStyle = (active) => ({
+    display: 'block', width: '100%', textAlign: 'left',
+    padding: '6px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12,
+    background: active ? '#2563eb' : 'transparent', color: active ? '#fff' : '#374151',
+    fontWeight: active ? 600 : 400,
+  });
+
   return (
     <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(0,0,0,0.45)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{
-        background: '#fff', borderRadius: 10, width: 720, maxWidth: '95vw',
-        maxHeight: '80vh', display: 'flex', flexDirection: 'column',
-        boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
-      }}>
+      <div style={{ background: '#fff', borderRadius: 10, width: 740, maxWidth: '95vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
         {/* Header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 20px', borderBottom: '1px solid #e5e7eb',
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid #e5e7eb' }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Médiathèque</h3>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 20, color: '#6b7280', lineHeight: 1, padding: '0 4px',
-            }}
-          >
-            ✕
-          </button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#6b7280', lineHeight: 1, padding: '0 4px' }}>✕</button>
         </div>
-
+        {/* Search */}
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid #e5e7eb' }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher…"
+            style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 10px', fontSize: 13, boxSizing: 'border-box' }} />
+        </div>
         {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-          {loading && <div style={{ color: '#6b7280', fontSize: 14 }}>Chargement...</div>}
-          {err && <div style={{ color: '#b91c1c', fontSize: 14 }}>{err}</div>}
-          {!loading && !err && media.length === 0 && (
-            <div style={{ color: '#9ca3af', fontSize: 14 }}>Aucun fichier dans la médiathèque.</div>
-          )}
-          {!loading && !err && media.length > 0 && (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-              gap: 12,
-            }}>
-              {media.map((item, i) => (
-                <button
-                  key={item.id || item.url || i}
-                  onClick={() => onSelect(item)}
-                  style={{
-                    border: '2px solid #e5e7eb', borderRadius: 8,
-                    padding: 6, background: '#f9fafb', cursor: 'pointer',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                    transition: 'border-color 0.15s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = '#2563eb'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = '#e5e7eb'}
-                >
-                  <img
-                    src={item.url_path ? `${MEDIA_BASE}${item.url_path}` : item.url}
-                    alt={item.original_name || item.filename || ''}
-                    style={{ width: '100%', height: 80, objectFit: 'contain', borderRadius: 4 }}
-                    onError={e => {
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.nextSibling.style.display = 'flex';
-                    }}
-                  />
-                  <div style={{
-                    display: 'none', width: '100%', height: 80,
-                    alignItems: 'center', justifyContent: 'center',
-                    fontSize: 28, color: '#d1d5db',
-                  }}>
-                    🖼
-                  </div>
-                  <div style={{
-                    fontSize: 11, color: '#6b7280', textAlign: 'center',
-                    wordBreak: 'break-all', maxWidth: '100%',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {item.original_name || item.filename || item.url_path?.split('/').pop() || ''}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          {/* Sidebar dossiers */}
+          <div style={{ width: 160, borderRight: '1px solid #e5e7eb', padding: '10px 8px', overflowY: 'auto', flexShrink: 0 }}>
+            <button style={folderBtnStyle(currentFolder === PICKER_ROOT)} onClick={() => setCurrentFolder(PICKER_ROOT)}>
+              🗂 Médiathèque
+            </button>
+            {allFolders.map(folder => (
+              <button key={folder} style={folderBtnStyle(currentFolder === folder)} onClick={() => setCurrentFolder(folder)}>
+                📁 {folder}
+              </button>
+            ))}
+          </div>
+          {/* Grille images */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+            {loading && <div style={{ color: '#6b7280', fontSize: 14 }}>Chargement...</div>}
+            {err && <div style={{ color: '#b91c1c', fontSize: 14 }}>{err}</div>}
+            {!loading && !err && filtered.length === 0 && (
+              <div style={{ color: '#9ca3af', fontSize: 14 }}>Aucun fichier dans ce dossier.</div>
+            )}
+            {!loading && !err && filtered.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
+                {filtered.map((item, i) => (
+                  <button
+                    key={item.id || item.url || i}
+                    onClick={() => onSelect(item)}
+                    style={{ border: '2px solid #e5e7eb', borderRadius: 8, padding: 6, background: '#f9fafb', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#2563eb'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = '#e5e7eb'}
+                  >
+                    <img
+                      src={item.url_path ? `${MEDIA_BASE}${item.url_path}` : item.url}
+                      alt={item.original_name || item.filename || ''}
+                      style={{ width: '100%', height: 80, objectFit: 'contain', borderRadius: 4 }}
+                      onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                    />
+                    <div style={{ display: 'none', width: '100%', height: 80, alignItems: 'center', justifyContent: 'center', fontSize: 28, color: '#d1d5db' }}>🖼</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', textAlign: 'center', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.original_name || item.filename || item.url_path?.split('/').pop() || ''}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

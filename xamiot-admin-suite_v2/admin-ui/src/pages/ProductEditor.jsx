@@ -119,40 +119,87 @@ function MediaPicker({ open, onSelect, onClose }) {
   );
 }
 
+const PICKER_ROOT = '__root__';
+function isValidPickerFolder(f) { return f && f !== '/' && f !== '' && f !== PICKER_ROOT; }
+
 function MediaPickerModal({ onPick, onClose }) {
-  const [files, setFiles] = React.useState([]);
-  const [search, setSearch] = React.useState('');
+  const [files, setFiles]           = React.useState([]);
+  const [search, setSearch]         = React.useState('');
+  const [currentFolder, setCurrentFolder] = React.useState(PICKER_ROOT);
+
   React.useEffect(() => {
     apiFetch('/admin/cms/media').then(setFiles).catch(() => {});
   }, []);
-  const filtered = files.filter(f => f.mime_type?.startsWith('image/') && f.original_name?.toLowerCase().includes(search.toLowerCase()));
+
+  const savedFolders = React.useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('xamiot_media_folders') || '[]'); } catch { return []; }
+  }, []);
+  const fileFolders = [...new Set(files.map(f => f.folder).filter(isValidPickerFolder))];
+  const allFolders  = [...new Set([...savedFolders, ...fileFolders])].filter(isValidPickerFolder);
+
+  const images = files.filter(f => f.mime_type?.startsWith('image/'));
+  const filtered = images.filter(f => {
+    const inFolder = currentFolder === PICKER_ROOT
+      ? !isValidPickerFolder(f.folder)
+      : f.folder === currentFolder;
+    return inFolder && f.original_name?.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const folderBtnStyle = (active) => ({
+    display: 'block', width: '100%', textAlign: 'left',
+    padding: '6px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12,
+    background: active ? '#2563eb' : 'transparent', color: active ? '#fff' : '#374151',
+    fontWeight: active ? 600 : 400,
+  });
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 10, padding: 20, width: 640, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+      <div style={{ background: '#fff', borderRadius: 10, width: 740, maxHeight: '82vh', display: 'flex', flexDirection: 'column' }}
         onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <strong>Choisir une image</strong>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>✕</button>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
+          <strong style={{ fontSize: 15 }}>Médiathèque</strong>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#6b7280' }}>✕</button>
         </div>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher…"
-          style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 10px', marginBottom: 12, fontSize: 13 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, overflowY: 'auto' }}>
-          {filtered.map(f => (
-            <div key={f.id} onClick={() => { onPick(`${API_BASE}${f.url_path}`); onClose(); }}
-              style={{ cursor: 'pointer', border: '2px solid transparent', borderRadius: 6, overflow: 'hidden' }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = '#2563eb'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
-              <img src={`${API_BASE}${f.url_path}`} alt={f.alt_text || f.original_name}
-                style={{ width: '100%', height: 80, objectFit: 'cover', display: 'block' }} />
-              <div style={{ padding: '3px 5px', fontSize: 10, color: '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {f.original_name}
-              </div>
+        {/* Search */}
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid #e5e7eb' }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher…"
+            style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 10px', fontSize: 13, boxSizing: 'border-box' }} />
+        </div>
+        {/* Body */}
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          {/* Sidebar dossiers */}
+          <div style={{ width: 160, borderRight: '1px solid #e5e7eb', padding: '10px 8px', overflowY: 'auto', flexShrink: 0 }}>
+            <button style={folderBtnStyle(currentFolder === PICKER_ROOT)} onClick={() => setCurrentFolder(PICKER_ROOT)}>
+              🗂 Médiathèque
+            </button>
+            {allFolders.map(folder => (
+              <button key={folder} style={folderBtnStyle(currentFolder === folder)} onClick={() => setCurrentFolder(folder)}>
+                📁 {folder}
+              </button>
+            ))}
+          </div>
+          {/* Grille images */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              {filtered.map(f => (
+                <div key={f.id} onClick={() => { onPick(`${API_BASE}${f.url_path}`); onClose(); }}
+                  style={{ cursor: 'pointer', border: '2px solid transparent', borderRadius: 6, overflow: 'hidden' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = '#2563eb'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
+                  <img src={`${API_BASE}${f.url_path}`} alt={f.alt_text || f.original_name}
+                    style={{ width: '100%', height: 80, objectFit: 'cover', display: 'block' }} />
+                  <div style={{ padding: '3px 5px', fontSize: 10, color: '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {f.original_name}
+                  </div>
+                </div>
+              ))}
+              {filtered.length === 0 && (
+                <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#9ca3af', padding: 24 }}>Aucune image</div>
+              )}
             </div>
-          ))}
-          {filtered.length === 0 && (
-            <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#9ca3af', padding: 24 }}>Aucune image</div>
-          )}
+          </div>
         </div>
       </div>
     </div>

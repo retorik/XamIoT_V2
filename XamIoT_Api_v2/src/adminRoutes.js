@@ -2022,11 +2022,12 @@ adminRouter.post('/cms/media/upload', requireAuth, mediaUpload.single('file'), a
 // PATCH /admin/cms/media/:id
 adminRouter.patch('/cms/media/:id', requireAuth, async (req, res, next) => {
   try {
-    const { alt_text } = req.body;
-    const { rows } = await q(
-      'UPDATE cms_media SET alt_text=$1 WHERE id=$2 RETURNING *',
-      [alt_text ?? null, req.params.id]
-    );
+    const fields = []; const vals = []; let i = 1;
+    if ('alt_text' in req.body) { fields.push(`alt_text=$${i++}`); vals.push(req.body.alt_text ?? null); }
+    if ('folder'   in req.body) { fields.push(`folder=$${i++}`);   vals.push(req.body.folder || null); }
+    if (!fields.length) return res.status(400).json({ error: 'no_fields' });
+    vals.push(req.params.id);
+    const { rows } = await q(`UPDATE cms_media SET ${fields.join(', ')} WHERE id=$${i} RETURNING *`, vals);
     if (!rows.length) return res.status(404).json({ error: 'not_found' });
     res.json(rows[0]);
   } catch (e) { next(e); }

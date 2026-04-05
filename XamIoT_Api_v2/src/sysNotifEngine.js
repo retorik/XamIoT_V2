@@ -224,8 +224,8 @@ async function getDevicesForScope(rule) {
   const { rows } = await q(
     `SELECT e.id, e.user_id, e.name, e.esp_uid, e.device_type_id, e.last_seen
        FROM esp_devices e
-       ${filter}
-      WHERE e.user_id IS NOT NULL`,
+      WHERE e.user_id IS NOT NULL
+        ${filter ? `AND ${filter.replace(/^WHERE\s+/i, '')}` : ''}`,
     params
   );
   return rows;
