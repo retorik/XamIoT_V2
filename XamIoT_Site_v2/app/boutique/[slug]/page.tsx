@@ -127,6 +127,7 @@ export default async function ProductPage({ params }: Props) {
                 price_cents: product.price_cents,
                 image_url: product.featured_media_url,
               }}
+              lang={lang}
             />
           ) : (
             <button disabled className="w-full py-3.5 rounded-xl bg-gray-100 text-gray-400 text-base font-semibold cursor-not-allowed">

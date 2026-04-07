@@ -1,9 +1,12 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import { getFooterItems } from '@/lib/api';
+import { getLang } from '@/lib/lang';
 
 export default async function Footer() {
+  const lang = getLang(cookies());
   const year = new Date().getFullYear();
-  const items = await getFooterItems('fr');
+  const items = await getFooterItems(lang);
 
   return (
     <footer className="bg-gray-50 border-t border-gray-200 mt-auto">

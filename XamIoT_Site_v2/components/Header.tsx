@@ -52,9 +52,9 @@ export default async function Header() {
             Support
           </a>
           <Link href="/panier" className="text-sm font-medium text-gray-600 hover:text-brand-600 transition-colors">
-            Panier
+            {lang === 'fr' ? 'Panier' : lang === 'es' ? 'Carrito' : 'Cart'}
           </Link>
-          <AccountStatus />
+          <AccountStatus lang={lang} />
         </nav>
 
         <div className="flex items-center gap-3">

@@ -129,6 +129,49 @@ Runner : `node --test` (Node.js natif). Fichiers : `src/__tests__/*.test.js`.
 
 ---
 
+## Portail client — Internationalisation (i18n)
+
+### Système de langue
+- Cookie `lang` (valeurs : `fr`, `en`, `es`) — lu côté client via `useLang()` (`XamIoT_Portal_v2/lib/useLang.ts`)
+- Changement de langue : `LangSelector` écrit le cookie **et** dispatch `window.dispatchEvent(new Event('langchange'))`
+- Toutes les pages écoutent cet event via `useLang()` → mise à jour instantanée sans rechargement
+
+### Pattern de traduction
+```ts
+const T = { fr: { title: '...' }, en: { title: '...' }, es: { title: '...' } }
+const lang = useLang()
+const t = T[lang]
+const dateLocale = lang === 'en' ? 'en-GB' : lang === 'es' ? 'es-ES' : 'fr-FR'
+```
+
+### LangSelector (`XamIoT_Portal_v2/components/LangSelector.tsx`)
+Props disponibles :
+- `dropUp?: boolean` (défaut `true`) — dropdown vers le haut (sidebar) ou vers le bas (login)
+- `large?: boolean` (défaut `false`) — version grande pour la page de login
+
+### Pages traduites (FR/EN/ES)
+- `/login` — page d'authentification (labels, messages d'erreur, reset password)
+- `/devices` — liste des appareils
+- `/devices/[id]` — détail appareil (onglets, métriques, règles, config)
+- `/notifications` — gestion alertes
+- `/alertes` — historique des alertes
+- `/support` — tickets support (liste, création, détail, thread)
+- `/commandes` — suivi commandes (stepper, timeline, tracking)
+- `/adresses` — gestion adresses (formulaire, types, pays)
+
+---
+
+## Back-office CMS — Structure API pages
+
+L'API CMS pages utilise un tableau `translations[]`, pas des champs plats :
+- **GET** `/admin/cms/pages` → retourne uniquement les titres (pas le contenu)
+- **GET** `/admin/cms/pages/:id` → retourne `{ translations: [{lang, title, content, content_after, seo_title, seo_description, menu_label}] }`
+- **POST** `/admin/cms/pages` → attend `{ slug, status, translations: [...] }`
+
+⚠️ Pour dupliquer une page, toujours fetcher le détail par ID avant de poster — la liste ne contient pas le contenu.
+
+---
+
 ## Architecture boutique
 
 - **Auth** (login/signup/verify-email) : sur le site public (`/compte`), pas le portail

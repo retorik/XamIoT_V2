@@ -77,7 +77,10 @@
                 android:layout_height="wrap_content"
                 android:visibility="gone"
                 android:hint="Nom de l'alerte (optionnel)"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                app:boxBackgroundMode="filled"
+                app:boxBackgroundColor="#1E1E1E"
+                app:boxStrokeColor="#333333"
+                app:hintTextColor="#999999"
                 android:layout_marginBottom="16dp">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -85,6 +88,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:textColor="#FFFFFF"
+                    android:textColorHint="#999999"
                     android:inputType="text"
                     android:maxLines="1"/>
 

@@ -57,7 +57,8 @@
 
         <activity
             android:name=".ui.enroll.EnrollDeviceActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
 
         <!-- ✅ Firebase Notification event -->
         <service

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { useLang } from '@/lib/useLang';
 
 interface Device { id: string; esp_uid: string; name: string; }
 
@@ -16,7 +17,41 @@ interface AlertLog {
   error: string | null;
 }
 
+const T = {
+  fr: {
+    title: 'Historique des alertes', subtitle: 'Toutes les alertes déclenchées sur vos appareils',
+    device: 'Appareil', all: 'Tous', since: 'Depuis le', filter: 'Filtrer',
+    search: 'Recherche', search_ph: 'Rechercher…',
+    col_date: 'Date', col_device: 'Appareil', col_channel: 'Canal', col_status: 'Statut', col_details: 'Détails',
+    empty: 'Aucune alerte trouvée.',
+    count: (n: number) => `${n} alerte${n > 1 ? 's' : ''} affichée${n > 1 ? 's' : ''}`,
+    error: 'Impossible de charger les données.',
+  },
+  en: {
+    title: 'Alert history', subtitle: 'All alerts triggered on your devices',
+    device: 'Device', all: 'All', since: 'Since', filter: 'Filter',
+    search: 'Search', search_ph: 'Search…',
+    col_date: 'Date', col_device: 'Device', col_channel: 'Channel', col_status: 'Status', col_details: 'Details',
+    empty: 'No alerts found.',
+    count: (n: number) => `${n} alert${n > 1 ? 's' : ''} shown`,
+    error: 'Unable to load data.',
+  },
+  es: {
+    title: 'Historial de alertas', subtitle: 'Todas las alertas activadas en sus dispositivos',
+    device: 'Dispositivo', all: 'Todos', since: 'Desde', filter: 'Filtrar',
+    search: 'Buscar', search_ph: 'Buscar…',
+    col_date: 'Fecha', col_device: 'Dispositivo', col_channel: 'Canal', col_status: 'Estado', col_details: 'Detalles',
+    empty: 'No se encontraron alertas.',
+    count: (n: number) => `${n} alerta${n > 1 ? 's' : ''} mostrada${n > 1 ? 's' : ''}`,
+    error: 'No se pueden cargar los datos.',
+  },
+};
+
 export default function AlertesPage() {
+  const lang = useLang();
+  const t = T[lang];
+  const dateLocale = lang === 'en' ? 'en-GB' : lang === 'es' ? 'es-ES' : 'fr-FR';
+
   const [devices, setDevices] = useState<Device[]>([]);
   const [alerts, setAlerts] = useState<AlertLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,9 +63,9 @@ export default function AlertesPage() {
   useEffect(() => {
     apiFetch<Device[]>('/esp-devices')
       .then(devs => { setDevices(devs); return loadAlerts('', ''); })
-      .catch(() => setError('Impossible de charger les données.'))
+      .catch(() => setError(t.error))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t.error]);
 
   async function loadAlerts(espId: string, since: string) {
     const params = new URLSearchParams({ limit: '200' });
@@ -85,59 +120,56 @@ export default function AlertesPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Historique des alertes</h1>
-        <p className="text-slate-500 text-sm mt-1">Toutes les alertes déclenchées sur vos appareils</p>
+        <h1 className="text-2xl font-bold text-slate-900">{t.title}</h1>
+        <p className="text-slate-500 text-sm mt-1">{t.subtitle}</p>
       </div>
 
       {error && <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
 
-      {/* Filtres */}
       <div className="flex flex-wrap gap-3 mb-6 items-end">
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Appareil</label>
+          <label className="block text-xs text-slate-500 mb-1">{t.device}</label>
           <select value={filterDevice} onChange={e => setFilterDevice(e.target.value)}
             className="px-3 py-2 rounded-lg border border-slate-200 text-sm min-w-[160px]">
-            <option value="">Tous</option>
+            <option value="">{t.all}</option>
             {devices.map(d => <option key={d.id} value={d.id}>{d.name || d.esp_uid}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Depuis le</label>
+          <label className="block text-xs text-slate-500 mb-1">{t.since}</label>
           <input type="date" value={filterSince} onChange={e => setFilterSince(e.target.value)}
             className="px-3 py-2 rounded-lg border border-slate-200 text-sm" />
         </div>
-        <button onClick={handleFilter}
-          className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg">
-          Filtrer
+        <button onClick={handleFilter} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg">
+          {t.filter}
         </button>
         <div className="flex-1 min-w-[180px]">
-          <label className="block text-xs text-slate-500 mb-1">Recherche</label>
+          <label className="block text-xs text-slate-500 mb-1">{t.search}</label>
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher…" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+            placeholder={t.search_ph} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">Aucune alerte trouvée.</div>
+          <div className="p-8 text-center text-sm text-slate-400">{t.empty}</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Date</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Appareil</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Canal</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Statut</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Détails</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t.col_date}</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t.col_device}</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t.col_channel}</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t.col_status}</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">{t.col_details}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map(a => (
                   <tr key={a.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {new Date(a.sent_at).toLocaleString('fr-FR', {
+                      {new Date(a.sent_at).toLocaleString(dateLocale, {
                         day: '2-digit', month: '2-digit', year: 'numeric',
                         hour: '2-digit', minute: '2-digit', second: '2-digit',
                       })}
@@ -160,7 +192,7 @@ export default function AlertesPage() {
         )}
       </div>
 
-      <p className="text-xs text-slate-400 mt-3">{filtered.length} alerte(s) affichée(s)</p>
+      <p className="text-xs text-slate-400 mt-3">{t.count(filtered.length)}</p>
     </div>
   );
 }

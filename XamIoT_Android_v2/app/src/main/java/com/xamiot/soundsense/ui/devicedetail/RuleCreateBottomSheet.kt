@@ -191,10 +191,10 @@ class RuleCreateBottomSheet : BottomSheetDialogFragment() {
                 val operators = listOf(">", ">=", "<", "<=", "==", "!=")
                 val adapter = ArrayAdapter(
                     spinnerOperator.context,
-                    android.R.layout.simple_spinner_item,
+                    R.layout.item_spinner_device,
                     operators
                 )
-                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                adapter.setDropDownViewResource(R.layout.item_spinner_device_dropdown)
                 spinnerOperator.adapter = adapter
                 val opIndex = operators.indexOf(currentOp).takeIf { it >= 0 } ?: 0
                 spinnerOperator.setSelection(opIndex)
@@ -390,10 +390,10 @@ class RuleCreateBottomSheet : BottomSheetDialogFragment() {
         if (spinnerOperator != null && template.fieldOperators.isNotEmpty()) {
             val adapter = ArrayAdapter(
                 spinnerOperator.context,
-                android.R.layout.simple_spinner_item,
+                R.layout.item_spinner_device,
                 template.fieldOperators
             )
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            adapter.setDropDownViewResource(R.layout.item_spinner_device_dropdown)
             spinnerOperator.adapter = adapter
             llOperatorRow?.visibility = View.VISIBLE
         } else {

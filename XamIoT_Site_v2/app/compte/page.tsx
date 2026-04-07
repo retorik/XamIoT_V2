@@ -9,27 +9,105 @@ import { setToken, setUser, isAuthenticated, getUser, clearAuth } from '@/lib/au
 type Tab = 'login' | 'signup';
 type Status = 'idle' | 'loading' | 'success' | 'error' | 'verify';
 type ResetStatus = 'idle' | 'loading' | 'sent' | 'error';
+type Lang = 'fr' | 'en' | 'es';
 
-const T = {
-  login: 'Se connecter', signup: 'Créer un compte',
-  email: 'Email', password: 'Mot de passe', confirm: 'Confirmer le mot de passe',
-  first_name: 'Prénom', last_name: 'Nom', phone: 'Téléphone (optionnel)',
-  submit_login: 'Connexion', submit_signup: 'Créer mon compte',
-  err_fields: 'Veuillez remplir tous les champs obligatoires.',
-  err_match: 'Les mots de passe ne correspondent pas.',
-  err_short: 'Le mot de passe doit contenir au moins 8 caractères.',
-  err_invalid: 'Email ou mot de passe incorrect.',
-  err_inactive: 'Votre compte n\'est pas encore activé. Vérifiez votre email ou renvoyez le lien.',
-  err_exists: 'Un compte existe déjà avec cet email.',
-  err_rate_limit: 'Trop de tentatives. Veuillez patienter quelques minutes.',
-  err_generic: 'Une erreur est survenue. Vérifiez votre connexion et réessayez.',
-  success_signup: 'Compte créé ! Un email de vérification a été envoyé à votre adresse.',
-  resend: 'Renvoyer l\'email de vérification',
-  resend_ok: 'Email renvoyé. Vérifiez votre boîte mail.',
+function readLang(): Lang {
+  if (typeof document === 'undefined') return 'fr';
+  const m = document.cookie.match(/(?:^|;\s*)lang=([^;]+)/);
+  const v = m?.[1];
+  return (['fr', 'en', 'es'] as Lang[]).includes(v as Lang) ? (v as Lang) : 'fr';
+}
+
+const TRANSLATIONS: Record<Lang, Record<string, string>> = {
+  fr: {
+    login: 'Se connecter', signup: 'Créer un compte',
+    email: 'Email', password: 'Mot de passe', confirm: 'Confirmer le mot de passe',
+    first_name: 'Prénom', last_name: 'Nom', phone: 'Téléphone (optionnel)',
+    submit_login: 'Connexion', submit_signup: 'Créer mon compte',
+    err_fields: 'Veuillez remplir tous les champs obligatoires.',
+    err_match: 'Les mots de passe ne correspondent pas.',
+    err_short: 'Le mot de passe doit contenir au moins 8 caractères.',
+    err_invalid: 'Email ou mot de passe incorrect.',
+    err_inactive: 'Votre compte n\'est pas encore activé. Vérifiez votre email ou renvoyez le lien.',
+    err_exists: 'Un compte existe déjà avec cet email.',
+    err_rate_limit: 'Trop de tentatives. Veuillez patienter quelques minutes.',
+    err_generic: 'Une erreur est survenue. Vérifiez votre connexion et réessayez.',
+    success_signup: 'Compte créé ! Un email de vérification a été envoyé à votre adresse.',
+    resend: 'Renvoyer l\'email de vérification',
+    resend_ok: 'Email renvoyé. Vérifiez votre boîte mail.',
+    forgot: 'Mot de passe oublié ?',
+    reset_title: 'Réinitialiser le mot de passe',
+    reset_hint: 'Entrez votre adresse email et nous vous enverrons un lien valable 15 minutes.',
+    reset_send: 'Envoyer le lien',
+    reset_back: '← Retour à la connexion',
+    reset_sent: 'Si un compte existe avec cet email, un lien de réinitialisation valable 15 minutes vous a été envoyé.',
+    hello: 'Bonjour,',
+    continue_order: 'Continuer ma commande →',
+    go_shop: 'Aller à la boutique',
+    portal: 'Mon espace client (portail)',
+    logout: 'Se déconnecter',
+  },
+  en: {
+    login: 'Sign in', signup: 'Create account',
+    email: 'Email', password: 'Password', confirm: 'Confirm password',
+    first_name: 'First name', last_name: 'Last name', phone: 'Phone (optional)',
+    submit_login: 'Sign in', submit_signup: 'Create my account',
+    err_fields: 'Please fill in all required fields.',
+    err_match: 'Passwords do not match.',
+    err_short: 'Password must be at least 8 characters.',
+    err_invalid: 'Incorrect email or password.',
+    err_inactive: 'Your account is not yet activated. Check your email or resend the link.',
+    err_exists: 'An account already exists with this email.',
+    err_rate_limit: 'Too many attempts. Please wait a few minutes.',
+    err_generic: 'An error occurred. Check your connection and try again.',
+    success_signup: 'Account created! A verification email has been sent to your address.',
+    resend: 'Resend verification email',
+    resend_ok: 'Email resent. Check your inbox.',
+    forgot: 'Forgot password?',
+    reset_title: 'Reset password',
+    reset_hint: 'Enter your email address and we\'ll send you a link valid for 15 minutes.',
+    reset_send: 'Send link',
+    reset_back: '← Back to sign in',
+    reset_sent: 'If an account exists with this email, a reset link valid for 15 minutes has been sent.',
+    hello: 'Hello,',
+    continue_order: 'Continue my order →',
+    go_shop: 'Go to shop',
+    portal: 'My client area (portal)',
+    logout: 'Sign out',
+  },
+  es: {
+    login: 'Iniciar sesión', signup: 'Crear cuenta',
+    email: 'Email', password: 'Contraseña', confirm: 'Confirmar contraseña',
+    first_name: 'Nombre', last_name: 'Apellido', phone: 'Teléfono (opcional)',
+    submit_login: 'Iniciar sesión', submit_signup: 'Crear mi cuenta',
+    err_fields: 'Por favor, rellene todos los campos obligatorios.',
+    err_match: 'Las contraseñas no coinciden.',
+    err_short: 'La contraseña debe tener al menos 8 caracteres.',
+    err_invalid: 'Email o contraseña incorrectos.',
+    err_inactive: 'Su cuenta aún no está activada. Revise su email o reenvíe el enlace.',
+    err_exists: 'Ya existe una cuenta con este email.',
+    err_rate_limit: 'Demasiados intentos. Por favor, espere unos minutos.',
+    err_generic: 'Se ha producido un error. Compruebe su conexión e inténtelo de nuevo.',
+    success_signup: '¡Cuenta creada! Se ha enviado un email de verificación a su dirección.',
+    resend: 'Reenviar email de verificación',
+    resend_ok: 'Email reenviado. Revise su bandeja de entrada.',
+    forgot: '¿Olvidó su contraseña?',
+    reset_title: 'Restablecer contraseña',
+    reset_hint: 'Introduzca su dirección de email y le enviaremos un enlace válido durante 15 minutos.',
+    reset_send: 'Enviar enlace',
+    reset_back: '← Volver al inicio de sesión',
+    reset_sent: 'Si existe una cuenta con este email, se ha enviado un enlace válido durante 15 minutos.',
+    hello: '¡Hola,',
+    continue_order: 'Continuar mi pedido →',
+    go_shop: 'Ir a la tienda',
+    portal: 'Mi espacio cliente (portal)',
+    logout: 'Cerrar sesión',
+  },
 };
 
 export default function ComptePage() {
   const router = useRouter();
+  const [lang, setLang] = useState<Lang>('fr');
   const [tab, setTab] = useState<Tab>('login');
   const [status, setStatus] = useState<Status>('idle');
   const [msg, setMsg] = useState('');
@@ -50,12 +128,18 @@ export default function ComptePage() {
   const [sPhone, setSPhone] = useState('');
 
   useEffect(() => {
+    setLang(readLang());
     setMounted(true);
     if (isAuthenticated()) {
       const user = getUser();
       if (user) setLoggedInUser(user as any);
     }
+    const handler = () => setLang(readLang());
+    window.addEventListener('langchange', handler);
+    return () => window.removeEventListener('langchange', handler);
   }, []);
+
+  const T = TRANSLATIONS[lang];
 
   function handleLogout() {
     clearAuth();
@@ -113,10 +197,10 @@ export default function ComptePage() {
     try {
       await authRequestPasswordReset(resetEmail);
       setResetStatus('sent');
-      setResetMsg('Si un compte existe avec cet email, un lien de réinitialisation valable 15 minutes vous a été envoyé.');
+      setResetMsg(T.reset_sent);
     } catch {
-      setResetStatus('sent'); // Volontaire : ne pas révéler si l'email existe
-      setResetMsg('Si un compte existe avec cet email, un lien de réinitialisation valable 15 minutes vous a été envoyé.');
+      setResetStatus('sent');
+      setResetMsg(T.reset_sent);
     }
   }
 
@@ -134,7 +218,6 @@ export default function ComptePage() {
 
   if (!mounted) return null;
 
-  // ── État : connecté ─────────────────────────────────────────────────────
   if (loggedInUser) {
     const pending = typeof window !== 'undefined' && !!localStorage.getItem('xamiot_checkout_pending');
     const displayName = [loggedInUser.first_name, loggedInUser.last_name].filter(Boolean).join(' ') || loggedInUser.email;
@@ -147,37 +230,27 @@ export default function ComptePage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
             </svg>
           </div>
-          <h1 className="text-xl font-bold mb-1">Bonjour, {displayName} !</h1>
+          <h1 className="text-xl font-bold mb-1">{T.hello} {displayName} !</h1>
           <p className="text-gray-500 text-sm mb-6">{loggedInUser.email}</p>
-
           <div className="space-y-3">
             {pending && (
-              <button
-                onClick={handleGoToCheckout}
-                className="w-full py-3 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition"
-              >
-                Continuer ma commande →
+              <button onClick={handleGoToCheckout}
+                className="w-full py-3 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition">
+                {T.continue_order}
               </button>
             )}
-            <Link
-              href="/boutique"
-              className="block w-full py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition text-center"
-            >
-              Aller à la boutique
+            <Link href="/boutique"
+              className="block w-full py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition text-center">
+              {T.go_shop}
             </Link>
-            <a
-              href={process.env.NEXT_PUBLIC_PORTAL_URL || 'https://xamcli.holiceo.com'}
+            <a href={process.env.NEXT_PUBLIC_PORTAL_URL || 'https://xamcli.holiceo.com'}
               className="block w-full py-3 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition text-center text-sm"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Mon espace client (portail)
+              target="_blank" rel="noopener noreferrer">
+              {T.portal}
             </a>
-            <button
-              onClick={handleLogout}
-              className="w-full py-2.5 text-sm text-red-500 hover:text-red-700 transition"
-            >
-              Se déconnecter
+            <button onClick={handleLogout}
+              className="w-full py-2.5 text-sm text-red-500 hover:text-red-700 transition">
+              {T.logout}
             </button>
           </div>
         </div>
@@ -185,7 +258,6 @@ export default function ComptePage() {
     );
   }
 
-  // ── État : non connecté ─────────────────────────────────────────────────
   return (
     <div className="max-w-md mx-auto px-4 py-12">
       <div className="flex mb-8 border-b border-gray-200">
@@ -226,7 +298,7 @@ export default function ComptePage() {
           <div className="text-center">
             <button type="button" onClick={() => { setResetMode(true); setResetEmail(email); setResetStatus('idle'); setResetMsg(''); }}
               className="text-sm text-blue-600 hover:underline">
-              Mot de passe oublié ?
+              {T.forgot}
             </button>
           </div>
         </form>
@@ -234,25 +306,25 @@ export default function ComptePage() {
 
       {tab === 'login' && resetMode && (
         <div className="space-y-4">
-          <h3 className="font-semibold text-gray-800">Réinitialiser le mot de passe</h3>
+          <h3 className="font-semibold text-gray-800">{T.reset_title}</h3>
           {resetStatus === 'sent' ? (
             <div className="p-4 rounded-lg bg-green-50 text-green-700 border border-green-200 text-sm">
               {resetMsg}
             </div>
           ) : (
             <form onSubmit={handleResetRequest} className="space-y-4">
-              <p className="text-sm text-gray-500">Entrez votre adresse email et nous vous enverrons un lien valable 15 minutes.</p>
+              <p className="text-sm text-gray-500">{T.reset_hint}</p>
               <input type="email" placeholder={T.email} value={resetEmail} onChange={e => setResetEmail(e.target.value)}
                 className={inputStyle} autoComplete="email" required />
               {resetMsg && <p className="text-sm text-red-600">{resetMsg}</p>}
               <button type="submit" disabled={resetStatus === 'loading'} className={btnStyle}>
-                {resetStatus === 'loading' ? '…' : 'Envoyer le lien'}
+                {resetStatus === 'loading' ? '…' : T.reset_send}
               </button>
             </form>
           )}
           <div className="text-center">
             <button type="button" onClick={() => setResetMode(false)} className="text-sm text-gray-500 hover:underline">
-              ← Retour à la connexion
+              {T.reset_back}
             </button>
           </div>
         </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
+import { useLang } from '@/lib/useLang';
 
 interface EspDevice {
   id: string;
@@ -24,6 +25,33 @@ interface MobileDevice {
   app_version: string | null;
   app_build_number: number | null;
 }
+
+const T = {
+  fr: {
+    title: 'Mes appareils', subtitle: 'Vos capteurs et appareils XamIoT',
+    section_iot: 'Capteurs IoT', section_mobile: 'Applications mobiles',
+    last_activity: 'Dernière activité :',
+    empty: 'Aucun appareil associé à votre compte.',
+    empty_sub: "Ajoutez un appareil depuis l'application mobile XamIoT.",
+    error: 'Impossible de charger vos appareils.',
+  },
+  en: {
+    title: 'My devices', subtitle: 'Your XamIoT sensors and devices',
+    section_iot: 'IoT sensors', section_mobile: 'Mobile apps',
+    last_activity: 'Last activity:',
+    empty: 'No device linked to your account.',
+    empty_sub: 'Add a device from the XamIoT mobile app.',
+    error: 'Unable to load your devices.',
+  },
+  es: {
+    title: 'Mis dispositivos', subtitle: 'Sus sensores y dispositivos XamIoT',
+    section_iot: 'Sensores IoT', section_mobile: 'Aplicaciones móviles',
+    last_activity: 'Última actividad:',
+    empty: 'Ningún dispositivo asociado a su cuenta.',
+    empty_sub: 'Añada un dispositivo desde la aplicación móvil XamIoT.',
+    error: 'No se pueden cargar sus dispositivos.',
+  },
+};
 
 function MiniSparkline({ data }: { data: number[] }) {
   if (!data || data.length === 0) return <span className="text-slate-300 text-xs">—</span>;
@@ -53,6 +81,10 @@ function LevelBadge({ level }: { level: number | null }) {
 }
 
 export default function DevicesPage() {
+  const lang = useLang();
+  const t = T[lang];
+  const dateLocale = lang === 'en' ? 'en-GB' : lang === 'es' ? 'es-ES' : 'fr-FR';
+
   const [devices, setDevices] = useState<EspDevice[]>([]);
   const [mobiles, setMobiles] = useState<MobileDevice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,13 +95,10 @@ export default function DevicesPage() {
       apiFetch<EspDevice[]>('/esp-devices'),
       apiFetch<MobileDevice[]>('/devices'),
     ])
-      .then(([espList, mobileList]) => {
-        setDevices(espList);
-        setMobiles(mobileList);
-      })
-      .catch(() => setError('Impossible de charger vos appareils.'))
+      .then(([espList, mobileList]) => { setDevices(espList); setMobiles(mobileList); })
+      .catch(() => setError(t.error))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t.error]);
 
   if (loading) {
     return (
@@ -82,25 +111,21 @@ export default function DevicesPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Mes appareils</h1>
-        <p className="text-slate-500 text-sm mt-1">Vos capteurs et appareils XamIoT</p>
+        <h1 className="text-2xl font-bold text-slate-900">{t.title}</h1>
+        <p className="text-slate-500 text-sm mt-1">{t.subtitle}</p>
       </div>
 
       {error && (
         <div className="mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
-      {/* Capteurs IoT */}
       {devices.length > 0 && (
         <>
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Capteurs IoT</h2>
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">{t.section_iot}</h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 mb-10">
             {devices.map((d) => (
-              <Link
-                key={d.id}
-                href={`/devices/${d.id}`}
-                className="group bg-white rounded-xl border border-slate-200 p-5 hover:border-brand-300 hover:shadow-md transition"
-              >
+              <Link key={d.id} href={`/devices/${d.id}`}
+                className="group bg-white rounded-xl border border-slate-200 p-5 hover:border-brand-300 hover:shadow-md transition">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
@@ -118,9 +143,7 @@ export default function DevicesPage() {
                 <MiniSparkline data={d.sound_history} />
                 {d.last_seen && (
                   <p className="text-xs text-slate-400 mt-2">
-                    {new Date(d.last_seen).toLocaleString('fr-FR', {
-                      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-                    })}
+                    {t.last_activity} {new Date(d.last_seen).toLocaleString(dateLocale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
               </Link>
@@ -129,10 +152,9 @@ export default function DevicesPage() {
         </>
       )}
 
-      {/* Appareils mobiles */}
       {mobiles.length > 0 && (
         <>
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Applications mobiles</h2>
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">{t.section_mobile}</h2>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {mobiles.map(m => (
               <div key={m.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
@@ -145,13 +167,9 @@ export default function DevicesPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-slate-900 text-sm truncate">{m.name || (m.platform === 'ios' ? 'iPhone' : 'Android')}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {[m.model, m.os_version].filter(Boolean).join(' · ') || m.platform}
-                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">{[m.model, m.os_version].filter(Boolean).join(' · ') || m.platform}</p>
                   {(m.app_version || m.app_build_number) && (
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      v{m.app_version ?? '—'}{m.app_build_number ? ` (${m.app_build_number})` : ''}
-                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">v{m.app_version ?? '—'}{m.app_build_number ? ` (${m.app_build_number})` : ''}</p>
                   )}
                 </div>
                 <span className={`flex-shrink-0 w-2 h-2 rounded-full ${m.is_active ? 'bg-green-400' : 'bg-slate-300'}`} />
@@ -163,8 +181,8 @@ export default function DevicesPage() {
 
       {devices.length === 0 && mobiles.length === 0 && !error && (
         <div className="text-center py-16 text-slate-400">
-          <p className="text-sm">Aucun appareil associé à votre compte.</p>
-          <p className="text-xs mt-2">Ajoutez un appareil depuis l&apos;application mobile XamIoT.</p>
+          <p className="text-sm">{t.empty}</p>
+          <p className="text-xs mt-2">{t.empty_sub}</p>
         </div>
       )}
     </div>

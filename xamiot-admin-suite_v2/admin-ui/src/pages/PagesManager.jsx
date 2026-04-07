@@ -64,6 +64,51 @@ export default function PagesManager({ embedded } = {}) {
     }
   }
 
+  async function duplicatePage(page) {
+    try {
+      // Charger la page complète — les traductions sont dans full.translations[]
+      const full = await apiFetch(`/admin/cms/pages/${page.id}`);
+      const trans = full.translations || [];
+      const byLang = (lang) => trans.find(t => t.lang === lang) || {};
+
+      const suffixes = { fr: ' (copie)', en: ' (copy)', es: ' (copia)' };
+
+      const translations = ['fr', 'en', 'es'].map(lang => {
+        const t = byLang(lang);
+        return {
+          lang,
+          title: t.title ? `${t.title}${suffixes[lang]}` : '',
+          content: t.content || null,
+          content_after: t.content_after || null,
+          seo_title: t.seo_title || null,
+          seo_description: t.seo_description || null,
+          menu_label: t.menu_label || null,
+        };
+      }).filter(t => t.title); // n'inclure que les langues qui ont un titre
+
+      const created = await apiFetch('/admin/cms/pages', {
+        method: 'POST',
+        body: {
+          slug: `${full.slug}-copie-${Date.now()}`,
+          status: 'draft',
+          show_in_menu: false,
+          show_in_footer: false,
+          translations,
+        },
+      });
+
+      // Enrichir avec les titres pour l'affichage dans la liste
+      const frTitle = translations.find(t => t.lang === 'fr')?.title || created.slug;
+      created.title_fr = frTitle;
+      created.title_en = translations.find(t => t.lang === 'en')?.title || '';
+      created.title_es = translations.find(t => t.lang === 'es')?.title || '';
+      setPages(prev => [...prev, created]);
+      setMsg({ type: 'success', text: `Page « ${created.title_fr} » créée.` });
+    } catch (e) {
+      setMsg({ type: 'error', text: e?.data?.error || e.message });
+    }
+  }
+
   // ---- Drag & drop reordering ----
 
   function handleDragStart(e, idx) {
@@ -258,6 +303,13 @@ export default function PagesManager({ embedded } = {}) {
                       style={{ background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
                     >
                       Éditer
+                    </button>
+                    <button
+                      onClick={() => duplicatePage(p)}
+                      title="Dupliquer cette page"
+                      style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer', color: '#1d4ed8' }}
+                    >
+                      Dupliquer
                     </button>
                     <button
                       onClick={() => toggleStatus(p)}

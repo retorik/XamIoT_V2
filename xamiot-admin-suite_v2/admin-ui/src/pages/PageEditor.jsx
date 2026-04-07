@@ -158,7 +158,7 @@ function LinkModal({ editor, onClose }) {
   function apply() {
     const href = tab === 'url' ? url.trim() : (selectedSlug ? `/${selectedSlug}` : '');
     if (!href) return;
-    editor.chain().focus().extendMarkRange('link').setLink({ href, target: newTab ? '_blank' : null }).run();
+    editor.chain().focus().extendMarkRange('link').setLink({ href, target: newTab ? '_blank' : '_self' }).run();
     onClose();
   }
 
@@ -736,8 +736,22 @@ export default function PageEditor() {
     if (!id) { setMsg({ type: 'error', text: 'Enregistrez d\'abord la page avant de traduire.' }); return; }
     setSaving(true); setMsg(null);
     try {
-      const result = await apiFetch(`/admin/cms/pages/${id}/translate`, { method: 'POST' });
-      setMsg({ type: 'success', text: result.message || 'Traduction en cours…' });
+      await apiFetch(`/admin/cms/pages/${id}/translate`, { method: 'POST' });
+      // Recharger la page pour afficher les traductions dans les éditeurs
+      const page = await apiFetch(`/admin/cms/pages/${id}`);
+      const trans = { fr: {}, en: {}, es: {} };
+      for (const t of (page.translations || [])) {
+        trans[t.lang] = {
+          title: t.title || '',
+          content: t.content || '',
+          content_after: t.content_after || '',
+          seo_title: t.seo_title || '',
+          seo_description: t.seo_description || '',
+          menu_label: t.menu_label || '',
+        };
+      }
+      setTranslations(trans);
+      setMsg({ type: 'success', text: 'Traduction terminée.' });
     } catch (e) {
       setMsg({ type: 'error', text: e?.data?.error || e.message });
     } finally {

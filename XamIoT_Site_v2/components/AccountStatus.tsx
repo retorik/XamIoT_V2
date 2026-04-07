@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
-export default function AccountStatus() {
+export default function AccountStatus({ lang = 'fr' }: { lang?: string }) {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export default function AccountStatus() {
         href="/compte"
         className="inline-flex items-center gap-1.5 text-sm font-bold text-green-600 hover:text-green-700 transition-colors"
       >
-        Mon compte
+        {lang === 'fr' ? 'Mon compte' : lang === 'es' ? 'Mi cuenta' : 'My account'}
         <span className="inline-block w-2 h-2 rounded-full bg-green-500 flex-shrink-0" title="Connecté" />
       </Link>
     );
@@ -43,7 +43,7 @@ export default function AccountStatus() {
       href="/compte"
       className="text-sm font-medium text-gray-600 hover:text-brand-600 transition-colors"
     >
-      Mon compte
+      {lang === 'fr' ? 'Mon compte' : lang === 'es' ? 'Mi cuenta' : 'My account'}
     </Link>
   );
 }

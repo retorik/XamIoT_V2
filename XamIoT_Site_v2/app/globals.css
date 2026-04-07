@@ -20,3 +20,8 @@
 .prose table th { @apply bg-gray-100 font-semibold text-left px-4 py-2 border border-gray-300; }
 .prose table td { @apply px-4 py-2 border border-gray-300; }
 .prose table tr:nth-child(even) td { @apply bg-gray-50; }
+
+/* Compensation header sticky (~84px) pour les ancres de navigation */
+.prose [id] {
+  scroll-margin-top: 96px;
+}

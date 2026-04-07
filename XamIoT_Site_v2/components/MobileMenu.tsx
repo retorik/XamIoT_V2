@@ -93,10 +93,10 @@ export default function MobileMenu({ menuItems, lang, portalUrl }: Props) {
                 href="/panier"
                 className="flex items-center px-3 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-brand-600 transition-colors"
               >
-                Panier
+                {lang === 'fr' ? 'Panier' : lang === 'es' ? 'Carrito' : 'Cart'}
               </Link>
               <div className="px-3 py-3">
-                <AccountStatus />
+                <AccountStatus lang={lang} />
               </div>
             </nav>
 

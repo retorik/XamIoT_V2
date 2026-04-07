@@ -657,7 +657,7 @@ class BleProvisioningManager(private val context: Context) {
     // ---------- Reads queue ----------
     @SuppressLint("MissingPermission")
     private fun enqueueRead(g: BluetoothGatt, c: BluetoothGattCharacteristic) {
-        readQueue.addLast(c)
+        readQueue.add(c)
         if (!isReading) processNextRead(g)
         updateBusy()
     }
@@ -686,7 +686,7 @@ class BleProvisioningManager(private val context: Context) {
         if (!ok) {
             isReading = false
             updateBusy()
-            readQueue.addFirst(next)
+            readQueue.add(0, next)
             mainHandler.postDelayed({ processNextRead(g) }, 250)
         }
     }
@@ -715,7 +715,7 @@ class BleProvisioningManager(private val context: Context) {
         while (offset < bytes.size) {
             val end = min(offset + payloadMax, bytes.size)
             val chunk = bytes.copyOfRange(offset, end)
-            writeQueue.addLast(PendingWrite(c, chunk, writeType, expectsCallback))
+            writeQueue.add(PendingWrite(c, chunk, writeType, expectsCallback))
             offset = end
         }
 
@@ -761,7 +761,7 @@ class BleProvisioningManager(private val context: Context) {
             setError(context.getString(R.string.ble_writing_denied, next.c.uuid))
             isWriting = false
             updateBusy()
-            writeQueue.addFirst(next)
+            writeQueue.add(0, next)
             mainHandler.postDelayed({ processNextWrite(g) }, 250)
             return
         }

@@ -10,6 +10,8 @@ const DEFAULT_VARS = {
   // Marque
   brandColor:      '#2563eb',
   brandHover:      '#1d4ed8',
+  brandText:       '#ffffff',
+  brandTextHover:  '#ffffff',
   // Corps
   bodyBg:          '#ffffff',
   bodyText:        '#111827',
@@ -100,10 +102,10 @@ a:hover, a[class]:hover, .prose a:hover,
 
 /* ── Couleur de marque ── */
 .text-brand-600, .text-brand-500 { color: ${v.brandColor} !important; }
-.bg-brand-600  { background-color: ${v.brandColor} !important; }
-.bg-brand-700  { background-color: ${v.brandHover} !important; }
+.bg-brand-600  { background-color: ${v.brandColor} !important; color: ${v.brandText} !important; }
+.bg-brand-700  { background-color: ${v.brandHover} !important; color: ${v.brandTextHover} !important; }
 .border-brand-600, .border-brand-500 { border-color: ${v.brandColor} !important; }
-.hover\\:bg-brand-700:hover   { background-color: ${v.brandHover} !important; }
+.hover\\:bg-brand-700:hover   { background-color: ${v.brandHover} !important; color: ${v.brandTextHover} !important; }
 .hover\\:text-brand-600:hover { color: ${v.brandColor} !important; }
 .focus\\:ring-brand-600:focus { --tw-ring-color: ${v.brandColor} !important; }
 
@@ -285,8 +287,10 @@ function GraphicEditor({ vars, onChange }) {
     <div style={{ padding: '14px 16px', overflowY: 'auto', flex: 1 }}>
 
       <Section title="Couleurs de marque">
-        <ColorField label="Couleur principale" value={vars.brandColor}  onChange={set('brandColor')} />
-        <ColorField label="Survol / secondaire" value={vars.brandHover} onChange={set('brandHover')} />
+        <ColorField label="Couleur principale"  value={vars.brandColor}     onChange={set('brandColor')} />
+        <ColorField label="Survol / secondaire" value={vars.brandHover}     onChange={set('brandHover')} />
+        <ColorField label="Texte normal"        value={vars.brandText}      onChange={set('brandText')} />
+        <ColorField label="Texte au survol"     value={vars.brandTextHover} onChange={set('brandTextHover')} />
       </Section>
 
       <Section title="Corps de page">

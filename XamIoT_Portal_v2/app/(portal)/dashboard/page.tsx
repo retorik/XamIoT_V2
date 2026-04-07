@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api';
 import { getUser } from '@/lib/auth';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
 import { usePortalConfig } from '@/lib/portalConfig';
+import { useLang } from '@/lib/useLang';
 
 interface EspDevice {
   id: string;
@@ -34,6 +35,51 @@ interface AlertRule {
   enabled: boolean;
 }
 
+const T = {
+  fr: {
+    title: 'Tableau de bord',
+    subtitle: "Vue d'ensemble de votre compte XamIoT",
+    sensors: 'Capteurs IoT',
+    mobiles: 'Appareils mobiles',
+    rules: 'Règles actives',
+    alerts: 'Alertes récentes',
+    section_iot: 'Capteurs IoT',
+    section_mobile: 'Applications mobiles',
+    last_activity: 'Dernière activité :',
+    empty: 'Aucun appareil associé à votre compte.',
+    empty_sub: "Ajoutez un appareil depuis l'application mobile XamIoT.",
+    error: 'Impossible de charger vos données.',
+  },
+  en: {
+    title: 'Dashboard',
+    subtitle: 'Overview of your XamIoT account',
+    sensors: 'IoT sensors',
+    mobiles: 'Mobile devices',
+    rules: 'Active rules',
+    alerts: 'Recent alerts',
+    section_iot: 'IoT sensors',
+    section_mobile: 'Mobile apps',
+    last_activity: 'Last activity:',
+    empty: 'No device linked to your account.',
+    empty_sub: 'Add a device from the XamIoT mobile app.',
+    error: 'Unable to load your data.',
+  },
+  es: {
+    title: 'Panel',
+    subtitle: 'Resumen de su cuenta XamIoT',
+    sensors: 'Sensores IoT',
+    mobiles: 'Dispositivos móviles',
+    rules: 'Reglas activas',
+    alerts: 'Alertas recientes',
+    section_iot: 'Sensores IoT',
+    section_mobile: 'Aplicaciones móviles',
+    last_activity: 'Última actividad:',
+    empty: 'Ningún dispositivo asociado a su cuenta.',
+    empty_sub: 'Añada un dispositivo desde la aplicación móvil XamIoT.',
+    error: 'No se pueden cargar sus datos.',
+  },
+};
+
 function MiniSparkline({ data }: { data: number[] }) {
   if (!data || data.length === 0) return <span className="text-slate-300 text-xs">—</span>;
   const max = Math.max(...data, 1);
@@ -43,12 +89,9 @@ function MiniSparkline({ data }: { data: number[] }) {
         const h = Math.max(2, (v / max) * 100);
         const hue = Math.max(0, 120 - (v / 100) * 120);
         return (
-          <div
-            key={i}
-            className="flex-1 rounded-sm"
+          <div key={i} className="flex-1 rounded-sm"
             style={{ height: `${h}%`, minWidth: 2, backgroundColor: `hsl(${hue},75%,50%)` }}
-            title={`${v}%`}
-          />
+            title={`${v}%`} />
         );
       })}
     </div>
@@ -69,6 +112,8 @@ function LevelBadge({ level }: { level: number | null }) {
 }
 
 export default function DashboardPage() {
+  const lang = useLang();
+  const t = T[lang];
   const { refresh_interval_sec, idle_timeout_sec } = usePortalConfig();
   const [devices, setDevices] = useState<EspDevice[]>([]);
   const [mobiles, setMobiles] = useState<MobileDevice[]>([]);
@@ -80,7 +125,6 @@ export default function DashboardPage() {
   const loadData = useCallback(() => {
     const user = getUser();
     if (!user) return;
-
     Promise.all([
       apiFetch<EspDevice[]>('/esp-devices'),
       apiFetch<MobileDevice[]>('/devices'),
@@ -93,9 +137,9 @@ export default function DashboardPage() {
         setRuleCount(rules.filter(r => r.enabled).length);
         setAlertCount(alerts.length);
       })
-      .catch(() => setError('Impossible de charger vos données.'))
+      .catch(() => setError(t.error))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t.error]);
 
   useEffect(() => { loadData(); }, [loadData]);
   useAutoRefresh(loadData, refresh_interval_sec * 1000, idle_timeout_sec * 1000);
@@ -108,50 +152,45 @@ export default function DashboardPage() {
     );
   }
 
+  const dateLocale = lang === 'en' ? 'en-GB' : lang === 'es' ? 'es-ES' : 'fr-FR';
+
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Tableau de bord</h1>
-        <p className="text-slate-500 text-sm mt-1">Vue d&apos;ensemble de votre compte XamIoT</p>
+        <h1 className="text-2xl font-bold text-slate-900">{t.title}</h1>
+        <p className="text-slate-500 text-sm mt-1">{t.subtitle}</p>
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
+        <div className="mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
-      {/* Compteurs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Link href="/devices" className="bg-white rounded-xl border border-slate-200 p-4 hover:border-brand-300 hover:shadow-sm transition">
-          <p className="text-xs text-slate-400 mb-1">Capteurs IoT</p>
+          <p className="text-xs text-slate-400 mb-1">{t.sensors}</p>
           <p className="text-2xl font-bold text-slate-900">{devices.length}</p>
         </Link>
         <Link href="/devices" className="bg-white rounded-xl border border-slate-200 p-4 hover:border-brand-300 hover:shadow-sm transition">
-          <p className="text-xs text-slate-400 mb-1">Appareils mobiles</p>
+          <p className="text-xs text-slate-400 mb-1">{t.mobiles}</p>
           <p className="text-2xl font-bold text-slate-900">{mobiles.length}</p>
         </Link>
         <Link href="/notifications" className="bg-white rounded-xl border border-slate-200 p-4 hover:border-brand-300 hover:shadow-sm transition">
-          <p className="text-xs text-slate-400 mb-1">Règles actives</p>
+          <p className="text-xs text-slate-400 mb-1">{t.rules}</p>
           <p className="text-2xl font-bold text-slate-900">{ruleCount}</p>
         </Link>
         <Link href="/alertes" className="bg-white rounded-xl border border-slate-200 p-4 hover:border-brand-300 hover:shadow-sm transition">
-          <p className="text-xs text-slate-400 mb-1">Alertes récentes</p>
+          <p className="text-xs text-slate-400 mb-1">{t.alerts}</p>
           <p className="text-2xl font-bold text-slate-900">{alertCount}</p>
         </Link>
       </div>
 
-      {/* Capteurs IoT */}
       {devices.length > 0 && (
         <>
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Capteurs IoT</h2>
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">{t.section_iot}</h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 mb-8">
             {devices.map((d) => (
-              <Link
-                key={d.id}
-                href={`/devices/${d.id}`}
-                className="group bg-white rounded-xl border border-slate-200 p-5 hover:border-brand-300 hover:shadow-md transition"
-              >
+              <Link key={d.id} href={`/devices/${d.id}`}
+                className="group bg-white rounded-xl border border-slate-200 p-5 hover:border-brand-300 hover:shadow-md transition">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
@@ -169,7 +208,7 @@ export default function DashboardPage() {
                 <MiniSparkline data={d.sound_history} />
                 {d.last_seen && (
                   <p className="text-xs text-slate-400 mt-2">
-                    Dernière activité : {new Date(d.last_seen).toLocaleString('fr-FR', {
+                    {t.last_activity} {new Date(d.last_seen).toLocaleString(dateLocale, {
                       day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
                     })}
                   </p>
@@ -180,10 +219,9 @@ export default function DashboardPage() {
         </>
       )}
 
-      {/* Mobiles */}
       {mobiles.length > 0 && (
         <>
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Applications mobiles</h2>
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">{t.section_mobile}</h2>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {mobiles.map(m => (
               <div key={m.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
@@ -196,13 +234,9 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-slate-900 text-sm truncate">{m.name || (m.platform === 'ios' ? 'iPhone' : 'Android')}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {[m.model, m.os_version].filter(Boolean).join(' · ') || m.platform}
-                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">{[m.model, m.os_version].filter(Boolean).join(' · ') || m.platform}</p>
                   {(m.app_version || m.app_build_number) && (
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      v{m.app_version ?? '—'}{m.app_build_number ? ` (${m.app_build_number})` : ''}
-                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">v{m.app_version ?? '—'}{m.app_build_number ? ` (${m.app_build_number})` : ''}</p>
                   )}
                 </div>
                 <span className={`flex-shrink-0 w-2 h-2 rounded-full ${m.is_active ? 'bg-green-400' : 'bg-slate-300'}`} />
@@ -217,8 +251,8 @@ export default function DashboardPage() {
           <svg className="w-12 h-12 mx-auto mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.348 14.652a3.75 3.75 0 010-5.304m5.304 0a3.75 3.75 0 010 5.304m-7.425 2.121a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.807-3.808-9.98 0-13.788m13.788 0c3.808 3.807 3.808 9.98 0 13.788M12 12h.008v.008H12V12z" />
           </svg>
-          <p className="text-sm">Aucun appareil associé à votre compte.</p>
-          <p className="text-xs mt-2">Ajoutez un appareil depuis l&apos;application mobile XamIoT.</p>
+          <p className="text-sm">{t.empty}</p>
+          <p className="text-xs mt-2">{t.empty_sub}</p>
         </div>
       )}
     </div>

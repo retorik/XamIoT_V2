@@ -16,6 +16,9 @@ import android.widget.ProgressBar
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
@@ -112,6 +115,15 @@ class EnrollDeviceActivity : AppCompatActivity() {
         // Toolbar close
         findViewById<MaterialToolbar>(R.id.toolbar).apply {
             setNavigationOnClickListener { finish() }
+        }
+
+        // Android 15+ edge-to-edge : ajuste le padding bas du scroll quand le clavier s'ouvre
+        val scrollView = findViewById<NestedScrollView>(R.id.enrollScrollView)
+        ViewCompat.setOnApplyWindowInsetsListener(scrollView) { view, insets ->
+            val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val navBottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+            view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, maxOf(imeBottom, navBottom))
+            insets
         }
 
         // Restore Wi-Fi
