@@ -702,7 +702,7 @@ function RetentionSection() {
   );
 }
 
-const LIMITER_LABELS = { global: 'Global', admin: 'Admin', auth: 'Auth', poll: 'Polling', portal_login: 'Portail login', contact: 'Contact', app: 'Apps mobiles' };
+const LIMITER_LABELS = { global: 'Global', admin: 'Admin', auth: 'Auth', poll: 'Polling', portal_login: 'Portail login', contact: 'Contact', deletion: 'Suppression compte', app: 'Apps mobiles' };
 const BADGE_COLORS = {
   auth:         { bg: '#fee2e2', color: '#b91c1c', border: '#fca5a5' },
   poll:         { bg: '#fef9c3', color: '#92400e', border: '#fde68a' },
@@ -710,6 +710,7 @@ const BADGE_COLORS = {
   global:       { bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' },
   portal_login: { bg: '#ede9fe', color: '#6d28d9', border: '#c4b5fd' },
   contact:      { bg: '#dcfce7', color: '#15803d', border: '#86efac' },
+  deletion:     { bg: '#fee2e2', color: '#b91c1c', border: '#fca5a5' },
   app:          { bg: '#e0f2fe', color: '#0369a1', border: '#7dd3fc' },
 };
 
@@ -723,7 +724,7 @@ function LimiterBadge({ name }) {
 }
 
 function RateLimitSection() {
-  const EMPTY = { global_max: 500, global_window_ms: 900000, admin_max: 300, admin_window_ms: 900000, auth_max: 20, auth_window_ms: 900000, poll_max: 2000, poll_window_ms: 900000, contact_max: 5, contact_window_ms: 3600000, portal_login_max: 10, portal_login_window_ms: 900000, app_max: 1000, app_window_ms: 900000, ip_whitelist: '' };
+  const EMPTY = { global_max: 500, global_window_ms: 900000, admin_max: 300, admin_window_ms: 900000, auth_max: 20, auth_window_ms: 900000, poll_max: 2000, poll_window_ms: 900000, contact_max: 5, contact_window_ms: 3600000, portal_login_max: 10, portal_login_window_ms: 900000, deletion_max: 5, deletion_window_ms: 3600000, app_max: 1000, app_window_ms: 900000, ip_whitelist: '' };
   const [form, setForm] = useState(EMPTY);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [err, setErr]  = useState('');
@@ -751,6 +752,8 @@ function RateLimitSection() {
         contact_window_ms:      data.contact_window_ms      ?? 3600000,
         portal_login_max:       data.portal_login_max       ?? 10,
         portal_login_window_ms: data.portal_login_window_ms ?? 900000,
+        deletion_max:           data.deletion_max           ?? 5,
+        deletion_window_ms:     data.deletion_window_ms     ?? 3600000,
         app_max:                data.app_max                ?? 1000,
         app_window_ms:          data.app_window_ms          ?? 900000,
         ip_whitelist:           data.ip_whitelist           ?? '',
@@ -817,6 +820,8 @@ function RateLimitSection() {
           contact_window_ms:      Number(form.contact_window_ms),
           portal_login_max:       Number(form.portal_login_max),
           portal_login_window_ms: Number(form.portal_login_window_ms),
+          deletion_max:           Number(form.deletion_max),
+          deletion_window_ms:     Number(form.deletion_window_ms),
           app_max:                Number(form.app_max),
           app_window_ms:          Number(form.app_window_ms),
           ip_whitelist:           form.ip_whitelist,
@@ -850,6 +855,7 @@ function RateLimitSection() {
     { label: 'Apps mobiles',  desc: 'iOS / Android (/devices, /esp-devices, /me…)',       maxKey: 'app_max',           windowKey: 'app_window_ms',           statKey: 'app' },
     { label: 'Auth',          desc: '/auth/* (signup, login, reset…)',                     maxKey: 'auth_max',          windowKey: 'auth_window_ms',          statKey: 'auth' },
     { label: 'Portail login', desc: 'Login portail client (/auth/login)',                  maxKey: 'portal_login_max',  windowKey: 'portal_login_window_ms',  statKey: 'portal_login' },
+    { label: 'Suppression compte', desc: 'Demande et confirmation de suppression de compte (/auth/*-account-deletion)', maxKey: 'deletion_max', windowKey: 'deletion_window_ms', statKey: 'deletion' },
     { label: 'Polling',       desc: 'Status bar (status, apns, fcm, smtp)',                maxKey: 'poll_max',          windowKey: 'poll_window_ms',          statKey: 'poll' },
     { label: 'Contact',       desc: 'Formulaire de contact public (/public/contact)',      maxKey: 'contact_max',       windowKey: 'contact_window_ms',       statKey: 'contact' },
   ];

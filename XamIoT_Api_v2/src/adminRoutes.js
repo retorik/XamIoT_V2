@@ -1673,6 +1673,8 @@ adminRouter.get('/rate-limit', async (req, res, next) => {
       contact_window_ms:      db.contact_window_ms      ?? live.contact_window_ms      ?? 3600000,
       portal_login_max:       db.portal_login_max       ?? live.portal_login_max       ?? 10,
       portal_login_window_ms: db.portal_login_window_ms ?? live.portal_login_window_ms ?? 900000,
+      deletion_max:           db.deletion_max           ?? live.deletion_max           ?? 5,
+      deletion_window_ms:     db.deletion_window_ms     ?? live.deletion_window_ms     ?? 3600000,
       app_max:                db.app_max                ?? live.app_max                ?? 1000,
       app_window_ms:          db.app_window_ms          ?? live.app_window_ms          ?? 900000,
       ip_whitelist:           db.ip_whitelist           ?? '',
@@ -1702,15 +1704,15 @@ adminRouter.post('/rate-limit/ips/reset', (req, res) => {
 
 adminRouter.post('/rate-limit', async (req, res, next) => {
   try {
-    const { global_max, global_window_ms, admin_max, admin_window_ms, auth_max, auth_window_ms, poll_max, poll_window_ms, contact_max, contact_window_ms, portal_login_max, portal_login_window_ms, app_max, app_window_ms, ip_whitelist } = req.body || {};
+    const { global_max, global_window_ms, admin_max, admin_window_ms, auth_max, auth_window_ms, poll_max, poll_window_ms, contact_max, contact_window_ms, portal_login_max, portal_login_window_ms, deletion_max, deletion_window_ms, app_max, app_window_ms, ip_whitelist } = req.body || {};
     // Normalise la whitelist : trim, déduplique, filtre les vides
     const whitelist = (ip_whitelist || '').split(',').map(s => s.trim()).filter(Boolean);
     const whitelistStr = whitelist.join(',');
     await q(
-      `INSERT INTO rate_limit_config (id, global_max, global_window_ms, admin_max, admin_window_ms, auth_max, auth_window_ms, poll_max, poll_window_ms, contact_max, contact_window_ms, portal_login_max, portal_login_window_ms, app_max, app_window_ms, ip_whitelist, updated_at)
-       VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
+      `INSERT INTO rate_limit_config (id, global_max, global_window_ms, admin_max, admin_window_ms, auth_max, auth_window_ms, poll_max, poll_window_ms, contact_max, contact_window_ms, portal_login_max, portal_login_window_ms, deletion_max, deletion_window_ms, app_max, app_window_ms, ip_whitelist, updated_at)
+       VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, now())
        ON CONFLICT (id) DO UPDATE
-         SET global_max=$1, global_window_ms=$2, admin_max=$3, admin_window_ms=$4, auth_max=$5, auth_window_ms=$6, poll_max=$7, poll_window_ms=$8, contact_max=$9, contact_window_ms=$10, portal_login_max=$11, portal_login_window_ms=$12, app_max=$13, app_window_ms=$14, ip_whitelist=$15, updated_at=now()`,
+         SET global_max=$1, global_window_ms=$2, admin_max=$3, admin_window_ms=$4, auth_max=$5, auth_window_ms=$6, poll_max=$7, poll_window_ms=$8, contact_max=$9, contact_window_ms=$10, portal_login_max=$11, portal_login_window_ms=$12, deletion_max=$13, deletion_window_ms=$14, app_max=$15, app_window_ms=$16, ip_whitelist=$17, updated_at=now()`,
       [
         Number(global_max)             || 500,
         Number(global_window_ms)       || 900000,
@@ -1724,6 +1726,8 @@ adminRouter.post('/rate-limit', async (req, res, next) => {
         Number(contact_window_ms)      || 3600000,
         Number(portal_login_max)       || 10,
         Number(portal_login_window_ms) || 900000,
+        Number(deletion_max)           || 5,
+        Number(deletion_window_ms)     || 3600000,
         Number(app_max)                || 1000,
         Number(app_window_ms)          || 900000,
         whitelistStr,
