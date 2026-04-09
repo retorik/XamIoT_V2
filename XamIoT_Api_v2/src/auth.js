@@ -319,12 +319,125 @@ export async function resetPasswordWithToken(token, newPassword) {
  *  SUPPRESSION DEFINITIVE
  * ========================== */
 
+const DELETE_CODE_EXPIRES = '15m';
+const DELETE_LINK_BASE = (portalUrl) => `${portalUrl}/supprimer-compte/confirmer`;
+
+function generateDeletionCode() {
+  // 8 caractères alphanumériques majuscules sans ambiguïtés (0/O, I/1/L)
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let code = '';
+  const bytes = crypto.randomBytes(8);
+  for (let i = 0; i < 8; i++) {
+    code += chars[bytes[i] % chars.length];
+  }
+  return code;
+}
+
+async function sendDeletionEmail(to, code, linkUrl) {
+  if (!isSmtpReady()) {
+    console.log(`[DELETE_ACCOUNT] SMTP non configuré. Code: ${code} | Lien: ${linkUrl}`);
+    return false;
+  }
+  const transporter = await createTransporter();
+  if (!transporter) return false;
+  try {
+    await transporter.sendMail({
+      from: buildFrom(),
+      to,
+      subject: 'Confirmation de suppression de votre compte XamIoT',
+      text: `Bonjour,\n\nVous avez demandé la suppression définitive de votre compte XamIoT.\n\nVotre code de vérification : ${code}\n\nOu cliquez directement sur ce lien : ${linkUrl}\n\nCe code et ce lien expirent dans 15 minutes.\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail — votre compte ne sera pas supprimé.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+          <h2 style="color:#c0392b;">Suppression de votre compte XamIoT</h2>
+          <p>Vous avez demandé la suppression définitive de votre compte et de toutes vos données.</p>
+          <p><strong>Votre code de vérification :</strong></p>
+          <p style="text-align:center;margin:20px 0;">
+            <span style="font-size:32px;font-weight:bold;letter-spacing:6px;color:#c0392b;font-family:monospace;">${code}</span>
+          </p>
+          <p style="text-align:center;margin:20px 0;">
+            <a href="${linkUrl}" style="background-color:#c0392b;color:#fff;padding:12px 24px;text-decoration:none;border-radius:4px;font-weight:bold;">Confirmer la suppression</a>
+          </p>
+          <p style="color:#666;font-size:13px;">Ce code et ce lien expirent dans <strong>15 minutes</strong>.</p>
+          <p style="color:#666;font-size:13px;">Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail — votre compte ne sera pas supprimé.</p>
+        </div>
+      `,
+    });
+    return true;
+  } catch (e) {
+    console.error('[DELETE_ACCOUNT] Échec SMTP:', e?.code || e?.name || e, e?.response || '');
+    return false;
+  }
+}
+
 /**
- * Supprime l'utilisateur. Les FK ON DELETE CASCADE + le trigger de purge alert_log
+ * Étape 1 : génère un code 8 caractères, l'enregistre haché en DB, envoie l'email.
+ * Réponse toujours neutre { ok: true } pour éviter l'énumération d'emails.
+ */
+export async function requestAccountDeletion(email) {
+  const emailNorm = (email || '').trim().toLowerCase();
+  if (!emailNorm) throw Object.assign(new Error('email_required'), { status: 400 });
+
+  const { rows } = await q('SELECT id, email FROM users WHERE email=$1 LIMIT 1', [emailNorm]);
+  if (!rows.length) return { ok: true }; // réponse neutre
+
+  const user = rows[0];
+  const code = generateDeletionCode();
+  const code_hash = await argon2.hash(code);
+  const expires_at = new Date(Date.now() + msFromHuman(DELETE_CODE_EXPIRES));
+
+  // Invalider les anciens codes non utilisés
+  await q('UPDATE account_deletion_codes SET used_at=now() WHERE user_id=$1 AND used_at IS NULL', [user.id]);
+
+  await q(
+    'INSERT INTO account_deletion_codes(user_id, code_hash, expires_at) VALUES($1, $2, $3)',
+    [user.id, code_hash, expires_at]
+  );
+
+  const portalUrl = config.urls.publicPortal;
+  const linkUrl = `${DELETE_LINK_BASE(portalUrl)}?email=${encodeURIComponent(user.email)}&code=${encodeURIComponent(code)}`;
+
+  await sendDeletionEmail(user.email, code, linkUrl);
+
+  return { ok: true };
+}
+
+/**
+ * Étape 2 : vérifie email + code, supprime le compte.
+ */
+export async function confirmAccountDeletion(email, code) {
+  if (!email || !code) throw Object.assign(new Error('missing_fields'), { status: 400 });
+
+  const emailNorm = email.trim().toLowerCase();
+  const { rows: users } = await q('SELECT id FROM users WHERE email=$1 LIMIT 1', [emailNorm]);
+  if (!users.length) throw Object.assign(new Error('invalid_code'), { status: 400 });
+
+  const userId = users[0].id;
+
+  const { rows } = await q(
+    `SELECT id, code_hash FROM account_deletion_codes
+     WHERE user_id=$1 AND used_at IS NULL AND expires_at > now()
+     ORDER BY created_at DESC LIMIT 5`,
+    [userId]
+  );
+
+  for (const row of rows) {
+    const valid = await argon2.verify(row.code_hash, code);
+    if (valid) {
+      await q('UPDATE account_deletion_codes SET used_at=now() WHERE id=$1', [row.id]);
+      const { rowCount } = await q('DELETE FROM users WHERE id=$1', [userId]);
+      return { ok: rowCount > 0 };
+    }
+  }
+
+  throw Object.assign(new Error('invalid_code'), { status: 400 });
+}
+
+/**
+ * Supprime l'utilisateur directement (utilisé depuis les apps mobiles avec token auth).
+ * Les FK ON DELETE CASCADE + le trigger de purge alert_log
  * s'occupent du reste (esp_devices, alert_rules, mobile_devices, user_badge, password_resets, alert_log via trigger).
  */
 export async function deleteMyAccount(userId) {
-  // Suppression simple : laisse les cascades faire le travail
   const { rowCount } = await q('DELETE FROM users WHERE id=$1', [userId]);
   return { ok: rowCount > 0 };
 }

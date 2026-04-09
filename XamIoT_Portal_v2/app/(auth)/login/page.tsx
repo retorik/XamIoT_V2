@@ -2,6 +2,7 @@
 
 import { Suspense, useState, FormEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import LangSelector from '@/components/LangSelector';
 import { useLang } from '@/lib/useLang';
 
@@ -17,6 +18,7 @@ const T = {
     submit: 'Se connecter',
     submitting: 'Connexion en cours…',
     forgot: 'Mot de passe oublié ?',
+    delete_account: 'Supprimer mon compte',
     idle: 'Vous avez été déconnecté pour inactivité.',
     error_credentials: 'Identifiants invalides',
     error_generic: 'Une erreur est survenue. Veuillez réessayer.',
@@ -36,6 +38,7 @@ const T = {
     submit: 'Sign in',
     submitting: 'Signing in…',
     forgot: 'Forgot password?',
+    delete_account: 'Delete my account',
     idle: 'You were signed out due to inactivity.',
     error_credentials: 'Invalid credentials',
     error_generic: 'An error occurred. Please try again.',
@@ -55,6 +58,7 @@ const T = {
     submit: 'Iniciar sesión',
     submitting: 'Iniciando sesión…',
     forgot: '¿Olvidó su contraseña?',
+    delete_account: 'Eliminar mi cuenta',
     idle: 'Se cerró su sesión por inactividad.',
     error_credentials: 'Credenciales inválidas',
     error_generic: 'Se produjo un error. Por favor, inténtelo de nuevo.',
@@ -211,11 +215,14 @@ function LoginForm() {
                 {loading ? t.submitting : t.submit}
               </button>
 
-              <div className="text-center">
+              <div className="text-center space-y-2">
                 <button type="button" onClick={() => { setResetMode(true); setResetEmail(email); setResetSent(false); }}
-                  className="text-sm text-brand-600 hover:underline">
+                  className="text-sm text-brand-600 hover:underline block w-full">
                   {t.forgot}
                 </button>
+                <Link href="/supprimer-compte" className="text-xs text-red-500 hover:underline block">
+                  {t.delete_account}
+                </Link>
               </div>
             </form>
           ) : (

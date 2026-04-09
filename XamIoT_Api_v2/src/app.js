@@ -13,6 +13,8 @@ import {
   requestPasswordReset,
   resetPasswordWithToken,
   deleteMyAccount,
+  requestAccountDeletion,
+  confirmAccountDeletion,
 } from './auth.js';
 import { startWorker } from './mqttWorker.js';
 import { dispatch } from './notifDispatcher.js';
@@ -31,7 +33,7 @@ import { config } from './config.js';
 import { reloadApnsConfig } from './apns.js';
 import { reloadFcmConfig } from './fcm.js';
 import { reloadSmtpConfig, createTransporter, buildFrom } from './smtp.js';
-import { globalLimiter, adminLimiter, authLimiter, pollLimiter, contactLimiter, portalLoginLimiter, appLimiter, reloadRateLimitConfig } from './rateLimitManager.js';
+import { globalLimiter, adminLimiter, authLimiter, pollLimiter, contactLimiter, portalLoginLimiter, deletionLimiter, appLimiter, reloadRateLimitConfig } from './rateLimitManager.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -923,6 +925,32 @@ app.get('/esp-alerts', requireAuth, async (req, res, next) => {
 // =============================================
 // COMPTE
 // =============================================
+
+// Étape 1 : demande de suppression → envoie email avec code 8 car + lien (15 min)
+// deletionLimiter : 5 req/h par IP — très strict pour éviter spam d'emails
+app.post('/auth/request-account-deletion', deletionLimiter, async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    const out = await requestAccountDeletion(email);
+    res.json(out);
+  } catch (e) {
+    const status = e?.status || 500;
+    res.status(status).json({ error: e?.message || 'request_failed' });
+  }
+});
+
+// Étape 2 : confirmation par code → supprime le compte
+// deletionLimiter : 5 req/h par IP — protège contre le brute-force sur le code 8 char
+app.post('/auth/confirm-account-deletion', deletionLimiter, async (req, res) => {
+  try {
+    const { email, code } = req.body || {};
+    const out = await confirmAccountDeletion(email, code);
+    res.json(out);
+  } catch (e) {
+    const status = e?.status || 500;
+    res.status(status).json({ error: e?.message || 'confirmation_failed' });
+  }
+});
 
 app.delete('/me', requireAuth, async (req, res) => {
   try {
