@@ -10,7 +10,7 @@ _(rien en cours)_
 - Emails transactionnels (confirmation commande, expédition, facture)
 - Gestion stock automatique (décrément à la commande, alerte seuil bas)
 - Dashboard portail client (suivi commandes enrichi, tracking colis)
-- Intégration HumanSensor (HLK-LD2410C) — firmware + backend + apps (cahier des charges prêt dans `ESP32-C3-HumanSensor/_docs/`)
+- Intégration HumanSensor (HLK-LD2410C) — firmware v2 (`ESP32-C3-HumanSensor_v2/`), migration DB 048, modification filtre BLE apps iOS/Android
 
 ## Backlog
 
@@ -26,6 +26,7 @@ _(rien en cours)_
 ### 2026-04-17
 - Audit firmware HLK-LD2410C : `ESP32-C3-HumanSensor/_docs/2026-04-10_audit_firmware_hlk_ld2410c.md`
 - Cahier des charges intégration XamIoT (v2, basé sur lecture code réel) : `ESP32-C3-HumanSensor/_docs/2026-04-15_cahier_charges_integration_xamiot_v2.md`
+- Dossier `ESP32-C3-HumanSensor_v2/` créé — structure PlatformIO, README checklist d'implémentation complète
 - Déploiement simulateur SoundSense sur PROD (ecrimoi.com) — migrations 046+047 appliquées, API + portail rebuildés
 
 ### 2026-04-10
