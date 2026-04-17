@@ -12,6 +12,7 @@ interface EspDevice {
   last_seen: string | null;
   last_db: number | null;
   sound_history: number[];
+  is_simulated: boolean;
 }
 
 interface MobileDevice {
@@ -34,6 +35,8 @@ const T = {
     empty: 'Aucun appareil associé à votre compte.',
     empty_sub: "Ajoutez un appareil depuis l'application mobile XamIoT.",
     error: 'Impossible de charger vos appareils.',
+    demo_badge: 'Démo',
+    no_data: 'Aucune donnée',
   },
   en: {
     title: 'My devices', subtitle: 'Your XamIoT sensors and devices',
@@ -42,6 +45,8 @@ const T = {
     empty: 'No device linked to your account.',
     empty_sub: 'Add a device from the XamIoT mobile app.',
     error: 'Unable to load your devices.',
+    demo_badge: 'Demo',
+    no_data: 'No data',
   },
   es: {
     title: 'Mis dispositivos', subtitle: 'Sus sensores y dispositivos XamIoT',
@@ -50,6 +55,8 @@ const T = {
     empty: 'Ningún dispositivo asociado a su cuenta.',
     empty_sub: 'Añada un dispositivo desde la aplicación móvil XamIoT.',
     error: 'No se pueden cargar sus dispositivos.',
+    demo_badge: 'Demo',
+    no_data: 'Sin datos',
   },
 };
 
@@ -125,27 +132,39 @@ export default function DevicesPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 mb-10">
             {devices.map((d) => (
               <Link key={d.id} href={`/devices/${d.id}`}
-                className="group bg-white rounded-xl border border-slate-200 p-5 hover:border-brand-300 hover:shadow-md transition">
+                className={`group bg-white rounded-xl border p-5 hover:shadow-md transition ${d.is_simulated ? 'border-violet-200 hover:border-violet-400' : 'border-slate-200 hover:border-brand-300'}`}>
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.008v.008H12V20zm3.889-4.596a5.5 5.5 0 00-7.778 0M12 12a3 3 0 110-6 3 3 0 010 6z" />
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${d.is_simulated ? 'bg-violet-50' : 'bg-brand-50'}`}>
+                      <svg className={`w-5 h-5 ${d.is_simulated ? 'text-violet-500' : 'text-brand-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        {d.is_simulated
+                          ? <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15M14.25 3.104c.251.023.501.05.75.082M19.8 15a2.25 2.25 0 01-.659 1.591l-1.591 1.591a2.25 2.25 0 01-1.591.659H7.757a2.25 2.25 0 01-1.591-.659l-1.591-1.591A2.25 2.25 0 014 15m15.8 0H4" />
+                          : <path strokeLinecap="round" strokeLinejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.008v.008H12V20zm3.889-4.596a5.5 5.5 0 00-7.778 0M12 12a3 3 0 110-6 3 3 0 010 6z" />
+                        }
                       </svg>
                     </div>
                     <div>
-                      <p className="font-semibold text-slate-900 text-sm">{d.name || d.esp_uid}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-slate-900 text-sm">{d.name || d.esp_uid}</p>
+                        {d.is_simulated && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700 border border-violet-200">
+                            {t.demo_badge}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-400 mt-0.5 font-mono">{d.esp_uid}</p>
                     </div>
                   </div>
                   <LevelBadge level={d.last_db} />
                 </div>
                 <MiniSparkline data={d.sound_history} />
-                {d.last_seen && (
+                {d.last_seen ? (
                   <p className="text-xs text-slate-400 mt-2">
                     {t.last_activity} {new Date(d.last_seen).toLocaleString(dateLocale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                   </p>
-                )}
+                ) : d.is_simulated ? (
+                  <p className="text-xs text-violet-400 mt-2">{t.no_data}</p>
+                ) : null}
               </Link>
             ))}
           </div>

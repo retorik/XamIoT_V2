@@ -16,7 +16,7 @@ import {
   requestAccountDeletion,
   confirmAccountDeletion,
 } from './auth.js';
-import { startWorker } from './mqttWorker.js';
+import { startWorker, evaluateAlertRules } from './mqttWorker.js';
 import { dispatch } from './notifDispatcher.js';
 import { checkOfflineDevices } from './sysNotifEngine.js';
 import { runScheduledNotifs } from './scheduledNotifWorker.js';
@@ -538,6 +538,7 @@ app.get('/esp-devices', requireAuth, async (req, res) => {
   const { rows } = await q(
     `SELECT
        e.id, e.esp_uid, e.name, e.topic_prefix, e.last_seen, e.last_db,
+       e.is_simulated,
        COALESCE((
          SELECT json_agg(s.sound_pct ORDER BY s.received_at ASC)
          FROM (
@@ -551,7 +552,7 @@ app.get('/esp-devices', requireAuth, async (req, res) => {
        ), '[]'::json) AS sound_history
      FROM esp_devices e
      WHERE e.user_id = $1
-     ORDER BY e.name NULLS LAST, e.esp_uid`,
+     ORDER BY e.is_simulated ASC, e.name NULLS LAST, e.esp_uid`,
     [req.user.sub]
   );
   res.json(rows);
@@ -561,7 +562,7 @@ app.get('/esp-devices/:id', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await q(
       `SELECT e.id, e.esp_uid, e.name, e.topic_prefix, e.last_seen, e.last_db,
-              dt.name AS device_type_name
+              e.is_simulated, dt.name AS device_type_name
          FROM esp_devices e
          LEFT JOIN device_types dt ON dt.id = e.device_type_id
         WHERE e.id = $1 AND e.user_id = $2`,
@@ -596,6 +597,74 @@ app.patch('/esp-devices/:id', requireAuth, async (req, res) => {
     ).catch(err => console.error('[AUDIT] device_update error:', err.message));
   }
   res.json(rows[0] || {});
+});
+
+// =============================================
+// SIMULATION — injection de mesures simulées
+// =============================================
+
+// POST /esp-devices/:id/simulate — injecte une mesure simulée
+// Body : { soundPct: number (0-100), soundAvg?: number }
+app.post('/esp-devices/:id/simulate', requireAuth, appLimiter, async (req, res, next) => {
+  try {
+    const { rows } = await q(
+      `SELECT e.id, e.esp_uid, e.user_id, e.name, e.device_type_id,
+              dt.notif_title_tpl, dt.notif_body_tpl
+         FROM esp_devices e
+         LEFT JOIN device_types dt ON dt.id = e.device_type_id
+        WHERE e.id=$1 AND e.user_id=$2 AND e.is_simulated=true LIMIT 1`,
+      [req.params.id, req.user.sub]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'simulated_device_not_found' });
+
+    const device = rows[0];
+    let { soundPct, soundAvg } = req.body || {};
+
+    soundPct = Math.min(100, Math.max(0, Number(soundPct) || 0));
+    soundAvg = soundAvg != null ? Math.min(100, Math.max(0, Number(soundAvg))) : soundPct;
+
+    const payload = JSON.stringify({ soundPct, soundAvg });
+    const topic = `xamiot/${device.esp_uid}/data`;
+
+    // Insère dans mqtt_raw_logs pour que l'historique soit visible
+    await q(
+      `INSERT INTO mqtt_raw_logs(topic, payload, esp_uid, esp_id, payload_size)
+       VALUES($1, $2, $3, $4, $5)`,
+      [topic, payload, device.esp_uid, device.id, payload.length]
+    );
+
+    // Met à jour last_seen et last_db (soundPct est la valeur primaire)
+    await q(
+      'UPDATE esp_devices SET last_seen=now(), last_db=$1 WHERE id=$2',
+      [soundPct, device.id]
+    );
+
+    // Évalue les règles d'alerte — même pipeline que les vraies trames MQTT
+    evaluateAlertRules(device, { soundPct, soundAvg }, topic).catch(e =>
+      console.error('[SIMULATOR] Erreur évaluation règles:', e?.message || e)
+    );
+
+    console.log(`[SIMULATOR] Mesure injectée: ${device.esp_uid} soundPct=${soundPct}`);
+    res.json({ ok: true, esp_uid: device.esp_uid, soundPct, soundAvg });
+  } catch (e) { next(e); }
+});
+
+// POST /esp-devices/:id/simulate/reset — vide l'historique simulé
+app.post('/esp-devices/:id/simulate/reset', requireAuth, appLimiter, async (req, res, next) => {
+  try {
+    const { rows } = await q(
+      'SELECT id, esp_uid FROM esp_devices WHERE id=$1 AND user_id=$2 AND is_simulated=true LIMIT 1',
+      [req.params.id, req.user.sub]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'simulated_device_not_found' });
+
+    const device = rows[0];
+    await q('DELETE FROM mqtt_raw_logs WHERE esp_uid=$1', [device.esp_uid]);
+    await q('UPDATE esp_devices SET last_seen=NULL, last_db=NULL WHERE id=$1', [device.id]);
+
+    console.log(`[SIMULATOR] Historique effacé: ${device.esp_uid}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
 });
 
 app.delete('/esp-devices/:id', requireAuth, async (req, res, next) => {

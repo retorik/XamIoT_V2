@@ -1,0 +1,366 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2822
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 Menlo-Regular;}
+{\colortbl;\red255\green255\blue255;\red183\green111\blue179;\red24\green24\blue24;\red70\green137\blue204;
+\red194\green126\blue101;\red193\green193\blue193;\red89\green138\blue67;\red167\green197\blue152;\red67\green192\blue160;
+\red140\green211\blue254;\red202\green202\blue202;\red212\green214\blue154;\red66\green179\blue255;\red205\green173\blue106;
+}
+{\*\expandedcolortbl;;\cssrgb\c77255\c52549\c75294;\cssrgb\c12157\c12157\c12157;\cssrgb\c33725\c61176\c83922;
+\cssrgb\c80784\c56863\c47059;\cssrgb\c80000\c80000\c80000;\cssrgb\c41569\c60000\c33333;\cssrgb\c70980\c80784\c65882;\cssrgb\c30588\c78824\c69020;
+\cssrgb\c61176\c86275\c99608;\cssrgb\c83137\c83137\c83137;\cssrgb\c86275\c86275\c66667;\cssrgb\c30980\c75686\c100000;\cssrgb\c84314\c72941\c49020;
+}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\partightenfactor0
+
+\f0\fs24 \cf2 \cb3 \expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 #include\cf4 \strokec4  \cf5 \strokec5 <Arduino.h>\cf6 \cb1 \strokec6 \
+\cf2 \cb3 \strokec2 #include\cf4 \strokec4  \cf5 \strokec5 <WiFi.h>\cf6 \cb1 \strokec6 \
+\cf2 \cb3 \strokec2 #include\cf4 \strokec4  \cf5 \strokec5 <WebServer.h>\cf6 \cb1 \strokec6 \
+\cf2 \cb3 \strokec2 #include\cf4 \strokec4  \cf5 \strokec5 <Preferences.h>\cf6 \cb1 \strokec6 \
+\cf2 \cb3 \strokec2 #include\cf4 \strokec4  \cf5 \strokec5 <esp_wifi.h>\cf6 \cb1 \strokec6 \
+\cf2 \cb3 \strokec2 #include\cf4 \strokec4  \cf5 \strokec5 "esp_idf_version.h"\cf6 \cb1 \strokec6 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7 // ================== CONFIG UTILISATEUR ==================\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf2 \cb3 \strokec2 #define\cf4 \strokec4  WIFI_SSID   \cf5 \strokec5 "MyBox"\cf7 \strokec7           // \uc0\u8592  SSID 2.4 GHz\cf6 \cb1 \strokec6 \
+\cf2 \cb3 \strokec2 #define\cf4 \strokec4  WIFI_PASS   \cf5 \strokec5 "WPA2TOM45UGO"\cf7 \strokec7    // \uc0\u8592  mot de passe exact\cf6 \cb1 \strokec6 \
+\cf2 \cb3 \strokec2 #define\cf4 \strokec4  HOSTNAME    \cf5 \strokec5 "esp32c3-ld2410c"\cf6 \cb1 \strokec6 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7 // Broches LD2410C (Qt Py ESP32-C3)\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf2 \cb3 \strokec2 #define\cf4 \strokec4  LD_RX_PIN   \cf8 \strokec8 20\cf7 \strokec7    // RX1 <- TX du LD2410C\cf6 \cb1 \strokec6 \
+\cf2 \cb3 \strokec2 #define\cf4 \strokec4  LD_TX_PIN   \cf8 \strokec8 21\cf7 \strokec7    // TX1 -> RX du LD2410C (optionnel)\cf6 \cb1 \strokec6 \
+\cf2 \cb3 \strokec2 #define\cf4 \strokec4  LD_OUT_PIN  \cf8 \strokec8 10\cf7 \strokec7    // OUT digital du LD2410C (HIGH = pr\'e9sence)\cf6 \cb1 \strokec6 \
+\cf2 \cb3 \strokec2 #define\cf4 \strokec4  LD_BAUD     \cf8 \strokec8 256000\cf6 \cb1 \strokec6 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7 // Temporisations\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf2 \cb3 \strokec2 #define\cf4 \strokec4  HEARTBEAT_MS     \cf8 \strokec8 2000UL\cf6 \cb1 \strokec6 \
+\cf2 \cb3 \strokec2 #define\cf4 \strokec4  UART_DELAY_AFTER_IP \cf8 \strokec8 3000UL\cf7 \strokec7    // d\'e9lai avant de d\'e9marrer l\'92UART apr\'e8s GOT_IP\cf6 \cb1 \strokec6 \
+\cf2 \cb3 \strokec2 #define\cf4 \strokec4  WIFI_WATCHDOG_MS    \cf8 \strokec8 20000UL\cf6 \cb1 \strokec6 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7 // Baisser un peu la puissance TX pour limiter les pics de courant\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf2 \cb3 \strokec2 #define\cf4 \strokec4  USE_LOWER_TX_POWER  \cf8 \strokec8 1\cf6 \cb1 \strokec6 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7 // ================== ETAT GLOBAL ==================\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf9 \cb3 \strokec9 WebServer\cf6 \strokec6  \cf10 \strokec10 server\cf6 \strokec6 (\cf8 \strokec8 80\cf6 \strokec6 );\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 bool\cf6 \strokec6  \cf10 \strokec10 wifiConnected\cf6 \strokec6    \cf11 \strokec11 =\cf6 \strokec6  \cf4 \strokec4 false\cf6 \strokec6 ;\cb1 \
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 bool\cf6 \strokec6  \cf10 \strokec10 webStarted\cf6 \strokec6       \cf11 \strokec11 =\cf6 \strokec6  \cf4 \strokec4 false\cf6 \strokec6 ;\cb1 \
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 bool\cf6 \strokec6  \cf10 \strokec10 uartStarted\cf6 \strokec6      \cf11 \strokec11 =\cf6 \strokec6  \cf4 \strokec4 false\cf6 \strokec6 ;\cb1 \
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 bool\cf6 \strokec6  \cf10 \strokec10 needWebStart\cf6 \strokec6     \cf11 \strokec11 =\cf6 \strokec6  \cf4 \strokec4 false\cf6 \strokec6 ;\cb1 \
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 bool\cf6 \strokec6  \cf10 \strokec10 wantUartStart\cf6 \strokec6    \cf11 \strokec11 =\cf6 \strokec6  \cf4 \strokec4 false\cf6 \strokec6 ;\cf7 \strokec7   // demande de start UART apr\'e8s IP\cf6 \cb1 \strokec6 \
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 unsigned\cf6 \strokec6  \cf4 \strokec4 long\cf6 \strokec6  \cf10 \strokec10 gotIpAt\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf8 \strokec8 0\cf6 \strokec6 ;\cb1 \
+\
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 unsigned\cf6 \strokec6  \cf4 \strokec4 long\cf6 \strokec6  \cf10 \strokec10 lastWiFiCheck\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf8 \strokec8 0\cf6 \strokec6 ;\cb1 \
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 unsigned\cf6 \strokec6  \cf4 \strokec4 long\cf6 \strokec6  \cf10 \strokec10 lastHeartbeat\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf8 \strokec8 0\cf6 \strokec6 ;\cb1 \
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf9 \strokec9 uint8_t\cf6 \strokec6  \cf10 \strokec10 consecutiveFails\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf8 \strokec8 0\cf6 \strokec6 ;\cb1 \
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 int\cf6 \strokec6  \cf10 \strokec10 lastReason\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf11 \strokec11 -\cf8 \strokec8 1\cf6 \strokec6 ;\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf9 \cb3 \strokec9 String\cf6 \strokec6  \cf10 \strokec10 gChosenBssid\cf6 \strokec6 ; \cf4 \strokec4 int\cf6 \strokec6  \cf10 \strokec10 gChosenChannel\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf8 \strokec8 0\cf6 \strokec6 ;\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7 // ================== HELPERS ==================\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf9 \strokec9 String\cf6 \strokec6  \cf12 \strokec12 macStr\cf6 \strokec6 (\cf4 \strokec4 const\cf6 \strokec6  \cf9 \strokec9 uint8_t\cf6 \strokec6  \cf4 \strokec4 *\cf10 \strokec10 bssid\cf6 \strokec6 )\{\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf4 \strokec4 char\cf6 \strokec6  \cf10 \strokec10 b\cf6 \strokec6 [\cf8 \strokec8 20\cf6 \strokec6 ];\cb1 \
+\cb3   \cf12 \strokec12 snprintf\cf6 \strokec6 (\cf10 \strokec10 b\cf6 \strokec6 , \cf4 \strokec4 sizeof\cf6 \strokec6 (\cf10 \strokec10 b\cf6 \strokec6 ), \cf5 \strokec5 "\cf10 \strokec10 %02X\cf5 \strokec5 :\cf10 \strokec10 %02X\cf5 \strokec5 :\cf10 \strokec10 %02X\cf5 \strokec5 :\cf10 \strokec10 %02X\cf5 \strokec5 :\cf10 \strokec10 %02X\cf5 \strokec5 :\cf10 \strokec10 %02X\cf5 \strokec5 "\cf6 \strokec6 ,\cb1 \
+\cb3     \cf10 \strokec10 bssid\cf6 \strokec6 [\cf8 \strokec8 0\cf6 \strokec6 ], \cf10 \strokec10 bssid\cf6 \strokec6 [\cf8 \strokec8 1\cf6 \strokec6 ], \cf10 \strokec10 bssid\cf6 \strokec6 [\cf8 \strokec8 2\cf6 \strokec6 ], \cf10 \strokec10 bssid\cf6 \strokec6 [\cf8 \strokec8 3\cf6 \strokec6 ], \cf10 \strokec10 bssid\cf6 \strokec6 [\cf8 \strokec8 4\cf6 \strokec6 ], \cf10 \strokec10 bssid\cf6 \strokec6 [\cf8 \strokec8 5\cf6 \strokec6 ]);\cb1 \
+\cb3   \cf2 \strokec2 return\cf6 \strokec6  \cf9 \strokec9 String\cf6 \strokec6 (\cf10 \strokec10 b\cf6 \strokec6 );\cb1 \
+\cb3 \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 const\cf6 \strokec6  \cf4 \strokec4 char*\cf6 \strokec6  \cf12 \strokec12 encNameShort\cf6 \strokec6 (\cf9 \strokec9 wifi_auth_mode_t\cf6 \strokec6  \cf10 \strokec10 e\cf6 \strokec6 ) \{\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf2 \strokec2 switch\cf6 \strokec6  (\cf10 \strokec10 e\cf6 \strokec6 ) \{\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf13 \strokec13 WIFI_AUTH_OPEN\cf6 \strokec6 :           \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "OPEN"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf13 \strokec13 WIFI_AUTH_WEP\cf6 \strokec6 :            \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "WEP"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf13 \strokec13 WIFI_AUTH_WPA_PSK\cf6 \strokec6 :        \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "WPA"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf13 \strokec13 WIFI_AUTH_WPA2_PSK\cf6 \strokec6 :       \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "WPA2"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf13 \strokec13 WIFI_AUTH_WPA_WPA2_PSK\cf6 \strokec6 :   \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "WPA/WPA2"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf13 \strokec13 WIFI_AUTH_WPA3_PSK\cf6 \strokec6 :       \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "WPA3"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf13 \strokec13 WIFI_AUTH_WPA2_WPA3_PSK\cf6 \strokec6 :  \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "WPA2/WPA3"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 default\cf6 \strokec6 : \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "?"\cf6 \strokec6 ;\cb1 \
+\cb3   \}\cb1 \
+\cb3 \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 const\cf6 \strokec6  \cf4 \strokec4 char*\cf6 \strokec6  \cf12 \strokec12 reasonToText\cf6 \strokec6 (\cf4 \strokec4 int\cf6 \strokec6  \cf10 \strokec10 r\cf6 \strokec6 )\{\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf2 \strokec2 switch\cf6 \strokec6  (\cf10 \strokec10 r\cf6 \strokec6 ) \{\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 1\cf6 \strokec6 :  \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "UNSPECIFIED"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 2\cf6 \strokec6 :  \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "AUTH_EXPIRE"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 3\cf6 \strokec6 :  \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "AUTH_LEAVE"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 4\cf6 \strokec6 :  \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "ASSOC_EXPIRE"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 5\cf6 \strokec6 :  \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "ASSOC_TOOMANY"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 6\cf6 \strokec6 :  \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "NOT_AUTHED"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 7\cf6 \strokec6 :  \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "NOT_ASSOCED"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 8\cf6 \strokec6 :  \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "ASSOC_LEAVE"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 15\cf6 \strokec6 : \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "4WAY_HANDSHAKE_TIMEOUT"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 200\cf6 \strokec6 :\cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "BEACON_TIMEOUT"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 201\cf6 \strokec6 :\cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "NO_AP_FOUND"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 202\cf6 \strokec6 :\cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "AUTH_FAIL"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 203\cf6 \strokec6 :\cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "ASSOC_FAIL"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 204\cf6 \strokec6 :\cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "HANDSHAKE_TIMEOUT"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 default\cf6 \strokec6 : \cf2 \strokec2 return\cf6 \strokec6  \cf5 \strokec5 "\'97"\cf6 \strokec6 ;\cb1 \
+\cb3   \}\cb1 \
+\cb3 \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 void\cf6 \strokec6  \cf12 \strokec12 adviceForReason\cf6 \strokec6 (\cf4 \strokec4 int\cf6 \strokec6  \cf10 \strokec10 r\cf6 \strokec6 )\{\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 print\cf6 \strokec6 (\cf5 \strokec5 "Conseil: "\cf6 \strokec6 );\cb1 \
+\cb3   \cf2 \strokec2 switch\cf6 \strokec6  (\cf10 \strokec10 r\cf6 \strokec6 ) \{\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 201\cf6 \strokec6 : \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 println\cf6 \strokec6 (\cf5 \strokec5 "SSID 2.4GHz visible/s\'e9par\'e9, canaux 1..13, pas cach\'e9."\cf6 \strokec6 ); \cf2 \strokec2 break\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 2\cf6 \strokec6 :\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 15\cf6 \strokec6 :\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 202\cf6 \strokec6 :\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf8 \strokec8 204\cf6 \strokec6 : \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 println\cf6 \strokec6 (\cf5 \strokec5 "Force WPA2-PSK, d\'e9sactive WPA3/Transition, PMF=optionnel."\cf6 \strokec6 ); \cf2 \strokec2 break\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 default\cf6 \strokec6 :  \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 println\cf6 \strokec6 (\cf5 \strokec5 "V\'e9rifie SSID/pass, 2.4GHz actif, pas de filtrage MAC, distance correcte."\cf6 \strokec6 ); \cf2 \strokec2 break\cf6 \strokec6 ;\cb1 \
+\cb3   \}\cb1 \
+\cb3 \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7 // ================== POLITIQUE RADIO ==================\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 void\cf6 \strokec6  \cf12 \strokec12 applyRadioPolicy\cf6 \strokec6 () \{\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 mode\cf6 \strokec6 (\cf4 \strokec4 WIFI_STA\cf6 \strokec6 );\cb1 \
+\cb3   \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 setHostname\cf6 \strokec6 (\cf4 \strokec4 HOSTNAME\cf6 \strokec6 );\cb1 \
+\cb3   \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 setSleep\cf6 \strokec6 (\cf4 \strokec4 false\cf6 \strokec6 );\cb1 \
+\cb3   \cf12 \strokec12 esp_wifi_set_ps\cf6 \strokec6 (\cf13 \strokec13 WIFI_PS_NONE\cf6 \strokec6 );\cb1 \
+\cb3   \cf12 \strokec12 esp_wifi_set_country_code\cf6 \strokec6 (\cf5 \strokec5 "FR"\cf6 \strokec6 , \cf4 \strokec4 true\cf6 \strokec6 );\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7   // Sur IDF 4.4.x (Arduino 2.0.14), on dispose de esp_wifi_disable_pmf_config(ifx)\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf2 \strokec2 #if\cf4 \strokec4  \cf2 \strokec2 defined\cf4 \strokec4 (ESP_IDF_VERSION)\cf6 \cb1 \strokec6 \
+\cb3   \cf2 \strokec2 # if\cf4 \strokec4  ESP_IDF_VERSION \cf11 \strokec11 >=\cf4 \strokec4  ESP_IDF_VERSION_VAL(\cf8 \strokec8 4\cf4 \strokec4 ,\cf8 \strokec8 4\cf4 \strokec4 ,\cf8 \strokec8 0\cf4 \strokec4 )\cf6 \cb1 \strokec6 \
+\cb3     \cf12 \strokec12 esp_wifi_disable_pmf_config\cf6 \strokec6 (\cf13 \strokec13 WIFI_IF_STA\cf6 \strokec6 );\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf2 \cb3 \strokec2   # endif\cf6 \cb1 \strokec6 \
+\cf2 \cb3 \strokec2   #endif\cf6 \cb1 \strokec6 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf2 \strokec2 #if\cf4 \strokec4  USE_LOWER_TX_POWER\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7     // R\'e9duit la conso cr\'eate RF (aide quand le LD2410C est branch\'e9 sur la m\'eame alim)\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3     \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 setTxPower\cf6 \strokec6 (\cf13 \strokec13 WIFI_POWER_8_5dBm\cf6 \strokec6 );\cf7 \strokec7   // ~8.5 dBm\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf2 \cb3 \strokec2   #endif\cf6 \cb1 \strokec6 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 persistent\cf6 \strokec6 (\cf4 \strokec4 false\cf6 \strokec6 );\cb1 \
+\cb3   \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 setAutoConnect\cf6 \strokec6 (\cf4 \strokec4 false\cf6 \strokec6 );\cb1 \
+\cb3   \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 setAutoReconnect\cf6 \strokec6 (\cf4 \strokec4 true\cf6 \strokec6 );\cb1 \
+\cb3 \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7 // ================== SMART CONNECT ==================\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 void\cf6 \strokec6  \cf12 \strokec12 smartConnect\cf6 \strokec6 (\cf4 \strokec4 bool\cf6 \strokec6  \cf10 \strokec10 lockBssid\cf6 \strokec6 ) \{\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 printf\cf6 \strokec6 (\cf5 \strokec5 "[WiFi] Scan des r\'e9seaux pour \cf14 \strokec14 \\"\cf10 \strokec10 %s\cf14 \strokec14 \\"\cf5 \strokec5 \'85\cf14 \strokec14 \\n\cf5 \strokec5 "\cf6 \strokec6 , \cf4 \strokec4 WIFI_SSID\cf6 \strokec6 );\cb1 \
+\cb3   \cf4 \strokec4 int\cf6 \strokec6  \cf10 \strokec10 n\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 scanNetworks\cf6 \strokec6 (\cf4 \strokec4 false\cf6 \strokec6 , \cf4 \strokec4 true\cf6 \strokec6 );\cb1 \
+\cb3   \cf4 \strokec4 int\cf6 \strokec6  \cf10 \strokec10 bestIdx\cf11 \strokec11 =-\cf8 \strokec8 1\cf6 \strokec6 , \cf10 \strokec10 bestRSSI\cf11 \strokec11 =-\cf8 \strokec8 999\cf6 \strokec6 , \cf10 \strokec10 bestChan\cf11 \strokec11 =\cf8 \strokec8 0\cf6 \strokec6 ;\cb1 \
+\cb3   \cf9 \strokec9 uint8_t\cf6 \strokec6  \cf10 \strokec10 bestBSSID\cf6 \strokec6 [\cf8 \strokec8 6\cf6 \strokec6 ]\cf11 \strokec11 =\cf6 \strokec6 \{\cf8 \strokec8 0\cf6 \strokec6 \};\cb1 \
+\
+\cb3   \cf2 \strokec2 for\cf6 \strokec6  (\cf4 \strokec4 int\cf6 \strokec6  \cf10 \strokec10 i\cf11 \strokec11 =\cf8 \strokec8 0\cf6 \strokec6 ;\cf10 \strokec10 i\cf11 \strokec11 <\cf10 \strokec10 n\cf6 \strokec6 ;\cf10 \strokec10 i\cf11 \strokec11 ++\cf6 \strokec6 )\{\cb1 \
+\cb3     \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 printf\cf6 \strokec6 (\cf5 \strokec5 "[WiFi]  SSID=\cf14 \strokec14 \\"\cf10 \strokec10 %s\cf14 \strokec14 \\"\cf5 \strokec5  RSSI=\cf10 \strokec10 %d\cf5 \strokec5 dBm CH=\cf10 \strokec10 %d\cf5 \strokec5  ENC=\cf10 \strokec10 %s\cf5 \strokec5  BSSID=\cf10 \strokec10 %s\cf14 \strokec14 \\n\cf5 \strokec5 "\cf6 \strokec6 ,\cb1 \
+\cb3       \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 SSID\cf6 \strokec6 (\cf10 \strokec10 i\cf6 \strokec6 ).\cf12 \strokec12 c_str\cf6 \strokec6 (), \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 RSSI\cf6 \strokec6 (\cf10 \strokec10 i\cf6 \strokec6 ), \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 channel\cf6 \strokec6 (\cf10 \strokec10 i\cf6 \strokec6 ),\cb1 \
+\cb3       \cf12 \strokec12 encNameShort\cf6 \strokec6 (\cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 encryptionType\cf6 \strokec6 (\cf10 \strokec10 i\cf6 \strokec6 )), \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 BSSIDstr\cf6 \strokec6 (\cf10 \strokec10 i\cf6 \strokec6 ).\cf12 \strokec12 c_str\cf6 \strokec6 ());\cb1 \
+\
+\cb3     \cf2 \strokec2 if\cf6 \strokec6  (\cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 SSID\cf6 \strokec6 (\cf10 \strokec10 i\cf6 \strokec6 )\cf12 \strokec12 ==\cf4 \strokec4 WIFI_SSID\cf6 \strokec6  \cf11 \strokec11 &&\cf6 \strokec6  \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 channel\cf6 \strokec6 (\cf10 \strokec10 i\cf6 \strokec6 )\cf11 \strokec11 <=\cf8 \strokec8 13\cf6 \strokec6 )\{\cb1 \
+\cb3       \cf2 \strokec2 if\cf6 \strokec6  (\cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 RSSI\cf6 \strokec6 (\cf10 \strokec10 i\cf6 \strokec6 )\cf11 \strokec11 >\cf10 \strokec10 bestRSSI\cf6 \strokec6 )\{\cb1 \
+\cb3         \cf10 \strokec10 bestRSSI\cf11 \strokec11 =\cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 RSSI\cf6 \strokec6 (\cf10 \strokec10 i\cf6 \strokec6 ); \cf10 \strokec10 bestIdx\cf11 \strokec11 =\cf10 \strokec10 i\cf6 \strokec6 ; \cf10 \strokec10 bestChan\cf11 \strokec11 =\cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 channel\cf6 \strokec6 (\cf10 \strokec10 i\cf6 \strokec6 );\cb1 \
+\cb3         \cf12 \strokec12 memcpy\cf6 \strokec6 (\cf10 \strokec10 bestBSSID\cf6 \strokec6 , \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 BSSID\cf6 \strokec6 (\cf10 \strokec10 i\cf6 \strokec6 ), \cf8 \strokec8 6\cf6 \strokec6 );\cb1 \
+\cb3       \}\cb1 \
+\cb3     \}\cb1 \
+\cb3   \}\cb1 \
+\
+\cb3   \cf2 \strokec2 if\cf6 \strokec6  (\cf10 \strokec10 bestIdx\cf11 \strokec11 <\cf8 \strokec8 0\cf6 \strokec6  \cf11 \strokec11 ||\cf6 \strokec6  \cf11 \strokec11 !\cf10 \strokec10 lockBssid\cf6 \strokec6 )\{\cb1 \
+\cb3     \cf2 \strokec2 if\cf6 \strokec6  (\cf10 \strokec10 bestIdx\cf11 \strokec11 <\cf8 \strokec8 0\cf6 \strokec6 ) \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 println\cf6 \strokec6 (\cf5 \strokec5 "[WiFi] SSID cible introuvable \uc0\u8594  tentative standard."\cf6 \strokec6 );\cb1 \
+\cb3     \cf2 \strokec2 else\cf6 \strokec6  \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 println\cf6 \strokec6 (\cf5 \strokec5 "[WiFi] Fallback sans lock BSSID."\cf6 \strokec6 );\cb1 \
+\cb3     \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 begin\cf6 \strokec6 (\cf4 \strokec4 WIFI_SSID\cf6 \strokec6 , \cf4 \strokec4 WIFI_PASS\cf6 \strokec6 );\cb1 \
+\cb3     \cf2 \strokec2 return\cf6 \strokec6 ;\cb1 \
+\cb3   \}\cb1 \
+\
+\cb3   \cf10 \strokec10 gChosenBssid\cf6 \strokec6  \cf12 \strokec12 =\cf6 \strokec6  \cf12 \strokec12 macStr\cf6 \strokec6 (\cf10 \strokec10 bestBSSID\cf6 \strokec6 );\cb1 \
+\cb3   \cf10 \strokec10 gChosenChannel\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf10 \strokec10 bestChan\cf6 \strokec6 ;\cb1 \
+\cb3   \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 printf\cf6 \strokec6 (\cf5 \strokec5 "[WiFi] Choix: CH=\cf10 \strokec10 %d\cf5 \strokec5  RSSI=\cf10 \strokec10 %d\cf5 \strokec5 dBm BSSID=\cf10 \strokec10 %s\cf14 \strokec14 \\n\cf5 \strokec5 "\cf6 \strokec6 , \cf10 \strokec10 bestChan\cf6 \strokec6 , \cf10 \strokec10 bestRSSI\cf6 \strokec6 , \cf10 \strokec10 gChosenBssid\cf6 \strokec6 .\cf12 \strokec12 c_str\cf6 \strokec6 ());\cb1 \
+\cb3   \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 begin\cf6 \strokec6 (\cf4 \strokec4 WIFI_SSID\cf6 \strokec6 , \cf4 \strokec4 WIFI_PASS\cf6 \strokec6 , \cf10 \strokec10 bestChan\cf6 \strokec6 , \cf10 \strokec10 bestBSSID\cf6 \strokec6 , \cf4 \strokec4 true\cf6 \strokec6 );\cb1 \
+\cb3 \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7 // ================== WEB ==================\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 void\cf6 \strokec6  \cf12 \strokec12 handleRoot\cf6 \strokec6 ()\{\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf9 \strokec9 String\cf6 \strokec6  \cf10 \strokec10 h\cf6 \strokec6 ;\cb1 \
+\cb3   \cf10 \strokec10 h\cf6 \strokec6 .\cf12 \strokec12 reserve\cf6 \strokec6 (\cf8 \strokec8 1200\cf6 \strokec6 );\cb1 \
+\cb3   \cf10 \strokec10 h\cf6 \strokec6  \cf12 \strokec12 +=\cf6 \strokec6  \cf4 \strokec4 F\cf6 \strokec6 (\cf5 \strokec5 "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"\cf6 \cb1 \strokec6 \
+\cb3          \cf5 \strokec5 "<title>ESP32-C3 LD2410C</title><style>body\{font-family:system-ui;margin:18px\}code\{background:#f7f7f7;padding:2px 4px;border-radius:4px\}</style>"\cf6 \strokec6 );\cb1 \
+\cb3   \cf10 \strokec10 h\cf6 \strokec6  \cf12 \strokec12 +=\cf6 \strokec6  \cf5 \strokec5 "<h1>ESP32-C3 \'97 \'c9tat</h1><p><strong>Wi-Fi:</strong> "\cf6 \strokec6 ;\cb1 \
+\cb3   \cf2 \strokec2 if\cf6 \strokec6  (\cf10 \strokec10 wifiConnected\cf6 \strokec6 )\{\cb1 \
+\cb3     \cf10 \strokec10 h\cf6 \strokec6  \cf12 \strokec12 +=\cf6 \strokec6  \cf5 \strokec5 "Connect\'e9 \'97 IP <code>"\cf12 \strokec12 +\cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 localIP\cf6 \strokec6 ().\cf12 \strokec12 toString\cf6 \strokec6 ()\cf12 \strokec12 +\cf5 \strokec5 "</code>"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf10 \strokec10 h\cf6 \strokec6  \cf12 \strokec12 +=\cf6 \strokec6  \cf5 \strokec5 " \'97 SSID <code>"\cf12 \strokec12 +\cf9 \strokec9 String\cf6 \strokec6 (\cf4 \strokec4 WIFI_SSID\cf6 \strokec6 )\cf12 \strokec12 +\cf5 \strokec5 "</code>"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf10 \strokec10 h\cf6 \strokec6  \cf12 \strokec12 +=\cf6 \strokec6  \cf5 \strokec5 " \'97 BSSID <code>"\cf12 \strokec12 +\cf10 \strokec10 gChosenBssid\cf12 \strokec12 +\cf5 \strokec5 "</code>"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf10 \strokec10 h\cf6 \strokec6  \cf12 \strokec12 +=\cf6 \strokec6  \cf5 \strokec5 " \'97 CH <code>"\cf12 \strokec12 +\cf9 \strokec9 String\cf6 \strokec6 (\cf10 \strokec10 gChosenChannel\cf6 \strokec6 )\cf12 \strokec12 +\cf5 \strokec5 "</code>"\cf6 \strokec6 ;\cb1 \
+\cb3     \cf10 \strokec10 h\cf6 \strokec6  \cf12 \strokec12 +=\cf6 \strokec6  \cf5 \strokec5 " \'97 RSSI <code>"\cf12 \strokec12 +\cf9 \strokec9 String\cf6 \strokec6 (\cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 RSSI\cf6 \strokec6 ())\cf12 \strokec12 +\cf5 \strokec5 " dBm</code>"\cf6 \strokec6 ;\cb1 \
+\cb3   \} \cf2 \strokec2 else\cf6 \strokec6  \{\cb1 \
+\cb3     \cf10 \strokec10 h\cf6 \strokec6  \cf12 \strokec12 +=\cf6 \strokec6  \cf5 \strokec5 "D\'e9connect\'e9"\cf6 \strokec6 ;\cb1 \
+\cb3   \}\cb1 \
+\cb3   \cf10 \strokec10 h\cf6 \strokec6  \cf12 \strokec12 +=\cf6 \strokec6  \cf5 \strokec5 "</p>"\cf6 \strokec6 ;\cb1 \
+\cb3   \cf10 \strokec10 h\cf6 \strokec6  \cf12 \strokec12 +=\cf6 \strokec6  \cf5 \strokec5 "<p><em>Dernier reason="\cf6 \strokec6  \cf12 \strokec12 +\cf6 \strokec6  \cf9 \strokec9 String\cf6 \strokec6 (\cf10 \strokec10 lastReason\cf6 \strokec6 ) \cf12 \strokec12 +\cf6 \strokec6  \cf5 \strokec5 " ("\cf6 \strokec6  \cf12 \strokec12 +\cf6 \strokec6  \cf9 \strokec9 String\cf6 \strokec6 (\cf12 \strokec12 reasonToText\cf6 \strokec6 (\cf10 \strokec10 lastReason\cf6 \strokec6 )) \cf12 \strokec12 +\cf6 \strokec6  \cf5 \strokec5 ")</em></p>"\cf6 \strokec6 ;\cb1 \
+\cb3   \cf10 \strokec10 h\cf6 \strokec6  \cf12 \strokec12 +=\cf6 \strokec6  \cf5 \strokec5 "<p>LD2410C: UART "\cf6 \strokec6 ;\cb1 \
+\cb3   \cf10 \strokec10 h\cf6 \strokec6  \cf12 \strokec12 +=\cf6 \strokec6  \cf10 \strokec10 uartStarted\cf6 \strokec6  \cf11 \strokec11 ?\cf6 \strokec6  \cf5 \strokec5 "<strong>d\'e9marr\'e9</strong>"\cf11 \strokec11 :\cf5 \strokec5 "<strong>arr\'eat\'e9</strong>"\cf6 \strokec6 ;\cb1 \
+\cb3   \cf10 \strokec10 h\cf6 \strokec6  \cf12 \strokec12 +=\cf6 \strokec6  \cf5 \strokec5 " @ "\cf12 \strokec12 +\cf9 \strokec9 String\cf6 \strokec6 (\cf4 \strokec4 LD_BAUD\cf6 \strokec6 )\cf12 \strokec12 +\cf5 \strokec5 " bps</p>"\cf6 \strokec6 ;\cb1 \
+\cb3   \cf10 \strokec10 server\cf6 \strokec6 .\cf12 \strokec12 send\cf6 \strokec6 (\cf8 \strokec8 200\cf6 \strokec6 , \cf5 \strokec5 "text/html; charset=utf-8"\cf6 \strokec6 , \cf10 \strokec10 h\cf6 \strokec6 );\cb1 \
+\cb3 \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 void\cf6 \strokec6  \cf12 \strokec12 setupWeb\cf6 \strokec6 ()\{\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf10 \strokec10 server\cf6 \strokec6 .\cf12 \strokec12 on\cf6 \strokec6 (\cf5 \strokec5 "/"\cf6 \strokec6 , \cf12 \strokec12 handleRoot\cf6 \strokec6 );\cb1 \
+\cb3   \cf10 \strokec10 server\cf6 \strokec6 .\cf12 \strokec12 begin\cf6 \strokec6 ();\cb1 \
+\cb3   \cf10 \strokec10 webStarted\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf4 \strokec4 true\cf6 \strokec6 ;\cb1 \
+\cb3   \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 println\cf6 \strokec6 (\cf5 \strokec5 "Serveur web d\'e9marr\'e9"\cf6 \strokec6 );\cb1 \
+\cb3 \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7 // ================== EVENTS Wi-Fi ==================\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 void\cf6 \strokec6  \cf12 \strokec12 onWiFiEvent\cf6 \strokec6 (\cf4 \strokec4 WiFiEvent_t\cf6 \strokec6  \cf10 \strokec10 event\cf6 \strokec6 , \cf4 \strokec4 WiFiEventInfo_t\cf6 \strokec6  \cf10 \strokec10 info\cf6 \strokec6 )\{\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf2 \strokec2 switch\cf6 \strokec6 (\cf10 \strokec10 event\cf6 \strokec6 )\{\cb1 \
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf13 \strokec13 ARDUINO_EVENT_WIFI_STA_CONNECTED\cf6 \strokec6 :\cb1 \
+\cb3       \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 println\cf6 \strokec6 (\cf5 \strokec5 "WiFi CONNECTED (association)"\cf6 \strokec6 );\cb1 \
+\cb3       \cf2 \strokec2 break\cf6 \strokec6 ;\cb1 \
+\
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf13 \strokec13 ARDUINO_EVENT_WIFI_STA_GOT_IP\cf6 \strokec6 :\cb1 \
+\cb3       \cf10 \strokec10 wifiConnected\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf4 \strokec4 true\cf6 \strokec6 ;\cb1 \
+\cb3       \cf10 \strokec10 consecutiveFails\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf8 \strokec8 0\cf6 \strokec6 ;\cb1 \
+\cb3       \cf10 \strokec10 gotIpAt\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf12 \strokec12 millis\cf6 \strokec6 ();\cb1 \
+\cb3       \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 printf\cf6 \strokec6 (\cf5 \strokec5 "WiFi GOT_IP: \cf10 \strokec10 %s\cf5 \strokec5   RSSI=\cf10 \strokec10 %d\cf5 \strokec5  dBm\cf14 \strokec14 \\n\cf5 \strokec5 "\cf6 \strokec6 ,\cb1 \
+\cb3         \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 localIP\cf6 \strokec6 ().\cf12 \strokec12 toString\cf6 \strokec6 ().\cf12 \strokec12 c_str\cf6 \strokec6 (), \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 RSSI\cf6 \strokec6 ());\cb1 \
+\cb3       \cf10 \strokec10 needWebStart\cf6 \strokec6   \cf11 \strokec11 =\cf6 \strokec6  \cf4 \strokec4 true\cf6 \strokec6 ;\cb1 \
+\cb3       \cf10 \strokec10 wantUartStart\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf4 \strokec4 true\cf6 \strokec6 ;\cf7 \strokec7    // on d\'e9marre l\'92UART plus tard (apr\'e8s d\'e9lai)\cf6 \cb1 \strokec6 \
+\cb3       \cf2 \strokec2 break\cf6 \strokec6 ;\cb1 \
+\
+\cb3     \cf2 \strokec2 case\cf6 \strokec6  \cf13 \strokec13 ARDUINO_EVENT_WIFI_STA_DISCONNECTED\cf6 \strokec6 : \{\cb1 \
+\cb3       \cf10 \strokec10 wifiConnected\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf4 \strokec4 false\cf6 \strokec6 ;\cb1 \
+\cb3       \cf4 \strokec4 int\cf6 \strokec6  \cf10 \strokec10 r\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  (\cf4 \strokec4 int\cf6 \strokec6 )\cf10 \strokec10 info\cf6 \strokec6 .\cf10 \strokec10 wifi_sta_disconnected\cf6 \strokec6 .\cf10 \strokec10 reason\cf6 \strokec6 ;\cb1 \
+\cb3       \cf10 \strokec10 lastReason\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf10 \strokec10 r\cf6 \strokec6 ;\cb1 \
+\cb3       \cf10 \strokec10 consecutiveFails\cf11 \strokec11 ++\cf6 \strokec6 ;\cb1 \
+\cb3       \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 printf\cf6 \strokec6 (\cf5 \strokec5 "WiFi DISCONNECTED, reason=\cf10 \strokec10 %d\cf5 \strokec5  (\cf10 \strokec10 %s\cf5 \strokec5 )\cf14 \strokec14 \\n\cf5 \strokec5 "\cf6 \strokec6 , \cf10 \strokec10 r\cf6 \strokec6 , \cf12 \strokec12 reasonToText\cf6 \strokec6 (\cf10 \strokec10 r\cf6 \strokec6 ));\cb1 \
+\cb3       \cf12 \strokec12 adviceForReason\cf6 \strokec6 (\cf10 \strokec10 r\cf6 \strokec6 );\cb1 \
+\cb3       \cf2 \strokec2 break\cf6 \strokec6 ;\cb1 \
+\cb3     \}\cb1 \
+\cb3     \cf2 \strokec2 default\cf6 \strokec6 : \cf2 \strokec2 break\cf6 \strokec6 ;\cb1 \
+\cb3   \}\cb1 \
+\cb3 \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7 // ================== START HELPERS ==================\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 void\cf6 \strokec6  \cf12 \strokec12 startWebIfNeeded\cf6 \strokec6 ()\{\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf2 \strokec2 if\cf6 \strokec6  (\cf10 \strokec10 wifiConnected\cf6 \strokec6  \cf11 \strokec11 &&\cf6 \strokec6  \cf11 \strokec11 !\cf10 \strokec10 webStarted\cf6 \strokec6 ) \cf12 \strokec12 setupWeb\cf6 \strokec6 ();\cb1 \
+\cb3 \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 static\cf6 \strokec6  \cf4 \strokec4 void\cf6 \strokec6  \cf12 \strokec12 startUartIfNeeded\cf6 \strokec6 ()\{\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf2 \strokec2 if\cf6 \strokec6  (\cf11 \strokec11 !\cf10 \strokec10 wifiConnected\cf6 \strokec6  \cf11 \strokec11 ||\cf6 \strokec6  \cf10 \strokec10 uartStarted\cf6 \strokec6  \cf11 \strokec11 ||\cf6 \strokec6  \cf11 \strokec11 !\cf10 \strokec10 wantUartStart\cf6 \strokec6 ) \cf2 \strokec2 return\cf6 \strokec6 ;\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7   // Attendre quelques secondes apr\'e8s l\'92IP pour laisser le Wi-Fi se stabiliser\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf2 \strokec2 if\cf6 \strokec6  (\cf12 \strokec12 millis\cf6 \strokec6 () \cf11 \strokec11 -\cf6 \strokec6  \cf10 \strokec10 gotIpAt\cf6 \strokec6  \cf11 \strokec11 <\cf6 \strokec6  \cf4 \strokec4 UART_DELAY_AFTER_IP\cf6 \strokec6 ) \cf2 \strokec2 return\cf6 \strokec6 ;\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7   // D\'e9marrer l\'92UART du LD2410C\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf10 \strokec10 Serial1\cf6 \strokec6 .\cf12 \strokec12 begin\cf6 \strokec6 (\cf4 \strokec4 LD_BAUD\cf6 \strokec6 , \cf13 \strokec13 SERIAL_8N1\cf6 \strokec6 , \cf4 \strokec4 LD_RX_PIN\cf6 \strokec6 , \cf4 \strokec4 LD_TX_PIN\cf6 \strokec6 );\cb1 \
+\cb3   \cf10 \strokec10 uartStarted\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf4 \strokec4 true\cf6 \strokec6 ;\cb1 \
+\cb3   \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 printf\cf6 \strokec6 (\cf5 \strokec5 "[UART] LD2410C d\'e9marr\'e9 @ \cf10 \strokec10 %u\cf5 \strokec5  bps (RX=\cf10 \strokec10 %d\cf5 \strokec5 , TX=\cf10 \strokec10 %d\cf5 \strokec5 )\cf14 \strokec14 \\n\cf5 \strokec5 "\cf6 \strokec6 , \cf4 \strokec4 LD_BAUD\cf6 \strokec6 , \cf4 \strokec4 LD_RX_PIN\cf6 \strokec6 , \cf4 \strokec4 LD_TX_PIN\cf6 \strokec6 );\cb1 \
+\cb3 \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7 // ================== SETUP / LOOP ==================\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 void\cf6 \strokec6  \cf12 \strokec12 setup\cf6 \strokec6 ()\{\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 begin\cf6 \strokec6 (\cf8 \strokec8 115200\cf6 \strokec6 );\cb1 \
+\cb3   \cf12 \strokec12 delay\cf6 \strokec6 (\cf8 \strokec8 200\cf6 \strokec6 );\cb1 \
+\cb3   \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 println\cf6 \strokec6 ();\cb1 \
+\cb3   \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 println\cf6 \strokec6 (\cf5 \strokec5 "[BOOT] S\'e9quence: Wi-Fi \uc0\u8594  Web \u8594  (UART LD2410C **apr\'e8s** IP + d\'e9lai)"\cf6 \strokec6 );\cb1 \
+\
+\cb3   \cf12 \strokec12 pinMode\cf6 \strokec6 (\cf4 \strokec4 LD_OUT_PIN\cf6 \strokec6 , \cf4 \strokec4 INPUT_PULLDOWN\cf6 \strokec6 );\cb1 \
+\
+\cb3   \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 onEvent\cf6 \strokec6 (\cf12 \strokec12 onWiFiEvent\cf6 \strokec6 );\cb1 \
+\cb3   \cf12 \strokec12 applyRadioPolicy\cf6 \strokec6 ();\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7   // Premier essai: verrouille le meilleur BSSID\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf12 \strokec12 smartConnect\cf6 \strokec6 (\cf4 \strokec4 true\cf6 \strokec6 );\cb1 \
+\
+\cb3   \cf2 \strokec2 if\cf6 \strokec6  (\cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 status\cf6 \strokec6 () \cf11 \strokec11 !=\cf6 \strokec6  \cf13 \strokec13 WL_CONNECTED\cf6 \strokec6 )\cb1 \
+\cb3     \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 println\cf6 \strokec6 (\cf5 \strokec5 "[WiFi] En attente d\'92IP via events\'85"\cf6 \strokec6 );\cb1 \
+\cb3 \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf4 \cb3 \strokec4 void\cf6 \strokec6  \cf12 \strokec12 loop\cf6 \strokec6 ()\{\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf2 \strokec2 if\cf6 \strokec6  (\cf10 \strokec10 needWebStart\cf6 \strokec6 )\{ \cf10 \strokec10 needWebStart\cf11 \strokec11 =\cf4 \strokec4 false\cf6 \strokec6 ; \cf12 \strokec12 startWebIfNeeded\cf6 \strokec6 (); \}\cb1 \
+\cb3   \cf12 \strokec12 startUartIfNeeded\cf6 \strokec6 ();\cb1 \
+\
+\cb3   \cf2 \strokec2 if\cf6 \strokec6  (\cf10 \strokec10 webStarted\cf6 \strokec6 ) \cf10 \strokec10 server\cf6 \strokec6 .\cf12 \strokec12 handleClient\cf6 \strokec6 ();\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7   // Heartbeat minimal\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf4 \strokec4 unsigned\cf6 \strokec6  \cf4 \strokec4 long\cf6 \strokec6  \cf10 \strokec10 now\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf12 \strokec12 millis\cf6 \strokec6 ();\cb1 \
+\cb3   \cf2 \strokec2 if\cf6 \strokec6  (\cf10 \strokec10 now\cf6 \strokec6  \cf11 \strokec11 -\cf6 \strokec6  \cf10 \strokec10 lastHeartbeat\cf6 \strokec6  \cf11 \strokec11 >\cf6 \strokec6  \cf4 \strokec4 HEARTBEAT_MS\cf6 \strokec6 )\{\cb1 \
+\cb3     \cf10 \strokec10 lastHeartbeat\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf10 \strokec10 now\cf6 \strokec6 ;\cb1 \
+\cb3     \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 printf\cf6 \strokec6 (\cf5 \strokec5 "[HB  ] UART=\cf10 \strokec10 %d\cf5 \strokec5   WiFi=\cf10 \strokec10 %d\cf5 \strokec5   IP=\cf10 \strokec10 %s\cf14 \strokec14 \\n\cf5 \strokec5 "\cf6 \strokec6 ,\cb1 \
+\cb3       \cf10 \strokec10 uartStarted\cf6 \strokec6 , \cf10 \strokec10 wifiConnected\cf6 \strokec6 , \cf10 \strokec10 wifiConnected\cf6 \strokec6  \cf11 \strokec11 ?\cf6 \strokec6  \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 localIP\cf6 \strokec6 ().\cf12 \strokec12 toString\cf6 \strokec6 ().\cf12 \strokec12 c_str\cf6 \strokec6 () \cf11 \strokec11 :\cf6 \strokec6  \cf5 \strokec5 "\'97"\cf6 \strokec6 );\cb1 \
+\cb3   \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7   // Watchdog Wi-Fi\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf2 \strokec2 if\cf6 \strokec6  (\cf10 \strokec10 now\cf6 \strokec6  \cf11 \strokec11 -\cf6 \strokec6  \cf10 \strokec10 lastWiFiCheck\cf6 \strokec6  \cf11 \strokec11 >\cf6 \strokec6  \cf4 \strokec4 WIFI_WATCHDOG_MS\cf6 \strokec6 ) \{\cb1 \
+\cb3     \cf10 \strokec10 lastWiFiCheck\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  \cf10 \strokec10 now\cf6 \strokec6 ;\cb1 \
+\cb3     \cf2 \strokec2 if\cf6 \strokec6  (\cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 status\cf6 \strokec6 () \cf11 \strokec11 !=\cf6 \strokec6  \cf13 \strokec13 WL_CONNECTED\cf6 \strokec6 ) \{\cb1 \
+\cb3       \cf10 \strokec10 Serial\cf6 \strokec6 .\cf12 \strokec12 println\cf6 \strokec6 (\cf5 \strokec5 "[WiFi] Watchdog \uc0\u8594  relance propre"\cf6 \strokec6 );\cb1 \
+\cb3       \cf10 \strokec10 WiFi\cf6 \strokec6 .\cf12 \strokec12 disconnect\cf6 \strokec6 (\cf4 \strokec4 true\cf6 \strokec6 , \cf4 \strokec4 true\cf6 \strokec6 );\cb1 \
+\cb3       \cf12 \strokec12 delay\cf6 \strokec6 (\cf8 \strokec8 200\cf6 \strokec6 );\cb1 \
+\cb3       \cf12 \strokec12 applyRadioPolicy\cf6 \strokec6 ();\cb1 \
+\cb3       \cf4 \strokec4 bool\cf6 \strokec6  \cf10 \strokec10 noLock\cf6 \strokec6  \cf11 \strokec11 =\cf6 \strokec6  (\cf10 \strokec10 consecutiveFails\cf6 \strokec6  \cf11 \strokec11 >=\cf6 \strokec6  \cf8 \strokec8 2\cf6 \strokec6 ) \cf11 \strokec11 ||\cf6 \strokec6  (\cf10 \strokec10 lastReason\cf6 \strokec6  \cf11 \strokec11 ==\cf6 \strokec6  \cf8 \strokec8 201\cf6 \strokec6 );\cb1 \
+\cb3       \cf12 \strokec12 smartConnect\cf6 \strokec6 (\cf11 \strokec11 !\cf10 \strokec10 noLock\cf6 \strokec6 );\cb1 \
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7       // IMPORTANT: ne touche pas \'e0 l\'92UART ici. Il reste d\'e9marr\'e9 uniquement apr\'e8s IP.\cf6 \cb1 \strokec6 \
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3     \}\cb1 \
+\cb3   \}\cb1 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \cb3 \strokec7   // Si tu veux, lis LD2410C ici (uniquement quand uartStarted == true)\cf6 \cb1 \strokec6 \
+\cf7 \cb3 \strokec7   // while (uartStarted && Serial1.available()) \{ Serial1.read(); /* parsage */ \}\cf6 \cb1 \strokec6 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf6 \cb3   \cf12 \strokec12 delay\cf6 \strokec6 (\cf8 \strokec8 2\cf6 \strokec6 );\cb1 \
+\cb3 \}\cb1 \
+\
+}

@@ -98,6 +98,61 @@ async function sendResetEmail(to, url, expiresHuman = RESET_EXPIRES) {
   }
 }
 
+// === SIMULATEUR ===
+// Crée un device simulé pour un utilisateur juste après son inscription.
+// Idempotent : ne crée rien si un device simulé existe déjà pour ce user.
+// Non-bloquant : les erreurs n'impactent pas le signup.
+async function createSimulatedDevice(userId) {
+  // Idempotence — un seul device simulé par compte
+  const { rows: existing } = await q(
+    'SELECT id FROM esp_devices WHERE user_id=$1 AND is_simulated=true LIMIT 1',
+    [userId]
+  );
+  if (existing.length > 0) {
+    console.log(`[SIMULATOR] Device simulé déjà présent pour user=${userId}, skip.`);
+    return existing[0];
+  }
+
+  // Récupération du type SoundSense — NULL si absent (non bloquant)
+  const { rows: typeRows } = await q(
+    `SELECT id FROM device_types WHERE name='SoundSense' LIMIT 1`
+  );
+  const soundSenseTypeId = typeRows[0]?.id ?? null;
+
+  // Génération d'un esp_uid unique avec retry (collision quasi-impossible à cette échelle)
+  let esp_uid, inserted;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const suffix = crypto.randomBytes(3).toString('hex').toUpperCase(); // ex: A3F8C2
+    esp_uid = `sim${suffix}`;
+    const topic_prefix = `xamiot/${esp_uid}`;
+    const name = `Capteur démo`;
+    try {
+      const { rows } = await q(
+        `INSERT INTO esp_devices(user_id, esp_uid, name, topic_prefix, mqtt_password_hash, mqtt_enabled, is_simulated, device_type_id)
+         VALUES($1, $2, $3, $4, NULL, false, true, $5)
+         RETURNING id, esp_uid, name`,
+        [userId, esp_uid, name, topic_prefix, soundSenseTypeId]
+      );
+      inserted = rows[0];
+      break;
+    } catch (e) {
+      if (e.code === '23505') continue; // collision esp_uid unique → retry
+      throw e;
+    }
+  }
+  if (!inserted) throw new Error('simulator_uid_collision_max_retries');
+
+  // Règle d'alerte par défaut — désactivée (évite des notifs push sur données simulées)
+  await q(
+    `INSERT INTO alert_rules(esp_id, field, op, threshold_num, enabled, cooldown_sec, user_label)
+     VALUES($1, 'soundPct', '>', 80, false, 300, 'Alerte sonore démo')`,
+    [inserted.id]
+  );
+
+  console.log(`[SIMULATOR] Device créé: ${inserted.esp_uid} pour user=${userId}`);
+  return inserted;
+}
+
 // === API ===
 export async function signup(email, password, firstName, lastName, phone) {
   const emailNorm = (email || '').trim().toLowerCase();
@@ -122,6 +177,11 @@ export async function signup(email, password, firstName, lastName, phone) {
     first_name: firstName || '', last_name: lastName || '',
     email: user.email, activation_url: url,
   }, { resourceType: 'user', resourceId: user.id }).catch(() => {});
+
+  // Création non-bloquante du device simulé — une erreur ici n'empêche pas l'inscription
+  createSimulatedDevice(user.id).catch(e =>
+    console.error('[SIMULATOR] Échec création device simulé (non bloquant):', e?.message || e)
+  );
 
   const isProd = (process.env.NODE_ENV || 'development') === 'production';
   return {

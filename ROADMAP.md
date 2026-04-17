@@ -10,6 +10,7 @@ _(rien en cours)_
 - Emails transactionnels (confirmation commande, expédition, facture)
 - Gestion stock automatique (décrément à la commande, alerte seuil bas)
 - Dashboard portail client (suivi commandes enrichi, tracking colis)
+- Intégration HumanSensor (HLK-LD2410C) — firmware + backend + apps (cahier des charges prêt dans `ESP32-C3-HumanSensor/_docs/`)
 
 ## Backlog
 
@@ -18,8 +19,22 @@ _(rien en cours)_
 - Facturation PDF automatique
 - App mobile : consultation commandes
 - Analytics boutique (conversion, panier moyen)
+- Apps iOS/Android : badge "Démo" sur le device simulé (champ `is_simulated` déjà retourné par l'API)
 
 ## Réalisé
+
+### 2026-04-17
+- Audit firmware HLK-LD2410C : `ESP32-C3-HumanSensor/_docs/2026-04-10_audit_firmware_hlk_ld2410c.md`
+- Cahier des charges intégration XamIoT (v2, basé sur lecture code réel) : `ESP32-C3-HumanSensor/_docs/2026-04-15_cahier_charges_integration_xamiot_v2.md`
+- Déploiement simulateur SoundSense sur PROD (ecrimoi.com) — migrations 046+047 appliquées, API + portail rebuildés
+
+### 2026-04-10
+- Simulateur SoundSense : création automatique d'un capteur démo à l'inscription (DEV uniquement)
+  - DB : colonne `is_simulated` + index (migration 046), association type SoundSense (migration 047)
+  - API : `POST /esp-devices/:id/simulate` et `/simulate/reset`, pipeline alertes complet (`evaluateAlertRules`)
+  - Portail client : badge "Démo", couleurs violettes, panneau simulateur (slider + boutons)
+  - Suppression compte : lien sur la page login, rate limit dédié (`deletionLimiter` 5 req/h), config back-office
+- Audit simulateur : `docs/audits/2026-04-10_audit_simulateur_device_xamiot.md`
 
 ### 2026-04-06
 - Portail client : internationalisation complète (FR/EN/ES) — toutes les pages (devices, device detail, notifications, alertes, support, commandes, adresses)

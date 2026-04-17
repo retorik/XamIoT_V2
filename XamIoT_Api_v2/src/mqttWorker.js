@@ -383,269 +383,229 @@ export function startWorker() {
       // 3d) Sys 3 — évaluation règles capteur système
       evaluateSensorRules(esp, obj).catch(() => {});
 
-      // 4) Charger règles actives (Système 1 — alert_rules)
-      const { rows: rules } = await q(
-        `SELECT r.id, r.field, r.op, r.threshold_num, r.threshold_str, r.cooldown_sec
-           FROM alert_rules r
-          WHERE r.esp_id = $1 AND r.enabled = true`,
-        [esp.id]
-      );
-      console.log('[INFO] rules actives:', rules.length);
-      if (!rules.length) return;
-
-      // 5) Récupérer les mobiles actifs du user (iOS + Android)
-      const { rows: devices } = await q(
-        `SELECT id, apns_token, fcm_token, platform, COALESCE(sandbox, false) AS sandbox
-           FROM mobile_devices
-          WHERE user_id = $1
-            AND is_active = true`,
-        [esp.user_id]
-      );
-      console.log('[INFO] mobile devices actifs:', devices.length);
-      if (!devices.length) return;
-
-      // 6) Évaluer chaque règle
-      for (const r of rules) {
-        // Champ à évaluer : utilise r.field depuis la DB (ou LEGACY_FIELD si vide)
-        const fieldName = (r.field && r.field.trim()) ? r.field.trim() : LEGACY_FIELD;
-        const value = readField(obj, fieldName);
-        const cooldownSec = int(r.cooldown_sec, cfg.defaultCooldownSec);
-
-        console.log(
-          `  [R] id=${r.id} field=${fieldName} op=${r.op} thr=${r.threshold_num ?? r.threshold_str} value=`,
-          value
-        );
-
-        if (value === undefined) {
-          console.log(`    -> champ "${fieldName}" absent. Champs disponibles =`, Object.keys(obj));
-          continue;
-        }
-
-        // Match ?
-        const isMatch = ruleMatches(value, r.op, r.threshold_num, r.threshold_str);
-        console.log('    -> match?', isMatch);
-        if (!isMatch) continue;
-
-        // Cooldown atomique : claim DB avant tout envoi (évite les race conditions)
-        const { rows: claimed } = await q(
-          `INSERT INTO alert_state(rule_id, last_sent) VALUES($1, NOW())
-           ON CONFLICT (rule_id) DO UPDATE
-             SET last_sent = NOW()
-             WHERE alert_state.last_sent IS NULL
-                OR alert_state.last_sent + ($2::int * INTERVAL '1 second') < NOW()
-           RETURNING rule_id`,
-          [r.id, cooldownSec]
-        );
-        if (!claimed.length) {
-          console.log(`    -> cooldown actif (${cooldownSec}s), skip`);
-          continue;
-        }
-
-        /* ---------- Construction Titre/Body via template ---------- */
-        // Métadonnées du champ (label + unité) — cherche dans TOUTES les frames du device type
-        let fieldLabel = fieldName;
-        let fieldUnit  = '';
-        if (esp.device_type_id) {
-          const mqttCfg = await getMqttConfig();
-          const allFields = getAllFrameFields(mqttCfg, esp.device_type_id);
-          const fieldMeta = allFields.find(f => f.name.toLowerCase() === fieldName.toLowerCase());
-          if (fieldMeta) {
-            fieldLabel = fieldMeta.label || fieldName;
-            fieldUnit  = fieldMeta.unit  || '';
-          }
-        }
-
-        const thresholdDisplay =
-          (r.threshold_num != null && Number.isFinite(Number(r.threshold_num)))
-            ? String(r.threshold_num)
-            : String(r.threshold_str ?? '');
-
-        // Variables disponibles dans les templates
-        const tplVars = {
-          device_name:    deviceName,
-          field_name:     fieldName,
-          field_label:    fieldLabel,
-          unit:           fieldUnit,
-          op:             r.op,
-          threshold:      thresholdDisplay,
-          current_value:  String(value),
-        };
-
-        const titleTpl = esp.notif_title_tpl || '{device_name} — Alerte !';
-        const bodyTpl  = esp.notif_body_tpl  || '{field_label} {op} {threshold} {unit} — valeur : {current_value} {unit}';
-
-        const title = renderTemplate(titleTpl, tplVars);
-        const body  = renderTemplate(bodyTpl,  tplVars);
-
-        // Pour le payload push (rétrocompatibilité)
-        const currentDisplayForBody = fieldUnit ? `${value} ${fieldUnit}` : String(value);
-
-        console.log('    [ALERT] title =', title);
-        console.log('    [ALERT] body  =', body);
-
-        // 7) Badge (compteur absolu non lu)
-        const { rows: badgeRows } = await q(
-          `WITH up AS (
-             INSERT INTO user_badge(user_id, unread_count)
-             VALUES ($1, 1)
-             ON CONFLICT (user_id)
-             DO UPDATE SET unread_count = user_badge.unread_count + 1,
-                           updated_at   = now()
-             RETURNING unread_count
-           )
-           SELECT unread_count FROM up`,
-          [esp.user_id]
-        );
-        const badge = Number(badgeRows?.[0]?.unread_count || 1);
-
-        // 7a) PUSH multi-plateforme (Android=FCM, iOS=APNs)
-        const pushResults = [];
-
-        const pushData = {
-          badge,
-          topic,
-          chipid,
-          device_name: deviceName,
-          esp_id: esp.id,
-          rule_id: r.id,
-
-          field: fieldName,
-          op: r.op,
-          threshold_num: r.threshold_num,
-          threshold_str: r.threshold_str,
-          threshold_display: thresholdDisplay,
-
-          current_value: value,
-          current_display: currentDisplayForBody,
-        };
-
-        for (const d of devices) {
-          const platform = String(d.platform || '').toLowerCase();
-          const isAndroid = platform.includes('android');
-
-          if (isAndroid) {
-            const res = await sendFCM(d.fcm_token, title, body, pushData);
-
-            console.log(
-              '    [FCM]',
-              `device=${d.id}`,
-              `ok=${res.ok}`,
-              res.ok ? `messageId=${res.messageId}` : `code=${res.code} msg=${res.message}`
-            );
-
-            if (!res.ok && res.disableDevice) {
-              await q('UPDATE mobile_devices SET is_active=false WHERE id=$1', [d.id]);
-              console.warn('    [FCM] token invalidé → device désactivé', d.id);
-            }
-
-            pushResults.push({
-              device_id: d.id,
-              platform: d.platform,
-              channel: 'fcm',
-              ok: !!res.ok,
-              messageId: res.messageId || null,
-              code: res.code || null,
-              message: res.message || null,
-            });
-          } else {
-            const res = await sendAPNS(
-              d.apns_token,
-              title,
-              body,
-              pushData,
-              { sandbox: !!d.sandbox }
-            );
-
-            console.log(
-              '    [APNS]',
-              `device=${d.id}`,
-              `env=${res.env}`,
-              `status=${res.status}`,
-              `reason=${res.reason || 'none'}`,
-              `apns-id=${res.apnsId || 'n/a'}`
-            );
-
-            if (
-              res.status === 410 ||
-              (res.status === 400 && /BadDeviceToken/i.test(res.body || ''))
-            ) {
-              await q('UPDATE mobile_devices SET is_active=false WHERE id=$1', [d.id]);
-              console.warn('    [APNS] token invalidé → device désactivé', d.id);
-            }
-
-            pushResults.push({
-              device_id: d.id,
-              platform: d.platform,
-              channel: 'apns',
-              ok: res.status === 200,
-              env: res.env,
-              status: res.status,
-              reason: res.reason || null,
-              apnsId: res.apnsId || null,
-            });
-          }
-        }
-
-        // 7b) LOG alert_log
-        const anyOk = pushResults.some(r0 => r0.ok);
-        const channel = 'push';
-        const status = anyOk ? 'sent' : 'failed';
-
-        const error = anyOk
-          ? null
-          : pushResults
-              .filter(r0 => !r0.ok)
-              .map(r0 => `device=${r0.device_id} ${r0.channel} ${r0.code || r0.status || 'fail'} ${r0.message || r0.reason || ''}`.trim())
-              .join(' | ')
-              .slice(0, 2000);
-
-        const alertPayload = {
-          title,
-          body,
-
-          field: fieldName,
-          op: r.op,
-          threshold_num: r.threshold_num,
-          threshold_str: r.threshold_str,
-          threshold_display: thresholdDisplay,
-
-          current_value: value,
-          current_display: currentDisplayForBody,
-
-          topic,
-          chipid,
-          device_name: deviceName,
-          esp_id: esp.id,
-          rule_id: r.id,
-
-          push_results: pushResults,
-        };
-
-        await q(
-          `INSERT INTO alert_log (rule_id, esp_id, device_id, channel, status, payload, error)
-           VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)`,
-          [ r.id, esp.id, chipid, channel, status, JSON.stringify(alertPayload), error ]
-        );
-        console.log('    -> alert logged in alert_log:', body);
-
-        // Rétention
-        await q(
-          `DELETE FROM alert_log al
-            WHERE al.device_id = $1
-              AND al.id NOT IN (
-                SELECT id
-                  FROM alert_log
-                 WHERE device_id = $1
-                 ORDER BY sent_at DESC
-                 LIMIT $2
-              )`,
-          [ chipid, ALERT_KEEP_PER_DEVICE ]
-        );
-      }
+      // 4-7) Évaluation des règles et envoi push
+      await evaluateAlertRules(esp, obj, topic);
     } catch (e) {
       console.error('[ERR worker]', e);
     }
   });
 
   return client;
+}
+
+/**
+ * Évalue les alert_rules actives d'un device contre un payload JSON,
+ * envoie les push notifications et logue dans alert_log.
+ *
+ * Utilisé par le worker MQTT (vraies trames) ET par l'endpoint /simulate.
+ *
+ * @param {object} esp - { id, user_id, name, esp_uid, device_type_id, notif_title_tpl, notif_body_tpl }
+ * @param {object} obj - Payload JSON parsé, ex: { soundPct: 75, soundAvg: 70 }
+ * @param {string} topic - Topic MQTT, ex: "xamiot/simXXXXXX/data" (utilisé dans alert_log)
+ */
+export async function evaluateAlertRules(esp, obj, topic) {
+  const defaultCooldownSec = int(process.env.DEFAULT_RULE_COOLDOWN_SEC, 120);
+  const deviceName = (esp.name && String(esp.name).trim()) ? String(esp.name).trim() : (esp.esp_uid || esp.id);
+  const chipid = esp.esp_uid || esp.id;
+
+  // 4) Charger règles actives (Système 1 — alert_rules)
+  const { rows: rules } = await q(
+    `SELECT r.id, r.field, r.op, r.threshold_num, r.threshold_str, r.cooldown_sec
+       FROM alert_rules r
+      WHERE r.esp_id = $1 AND r.enabled = true`,
+    [esp.id]
+  );
+  console.log('[INFO] rules actives:', rules.length);
+  if (!rules.length) return;
+
+  // 5) Récupérer les mobiles actifs du user (iOS + Android)
+  const { rows: devices } = await q(
+    `SELECT id, apns_token, fcm_token, platform, COALESCE(sandbox, false) AS sandbox
+       FROM mobile_devices
+      WHERE user_id = $1
+        AND is_active = true`,
+    [esp.user_id]
+  );
+  console.log('[INFO] mobile devices actifs:', devices.length);
+  if (!devices.length) return;
+
+  // 6) Évaluer chaque règle
+  for (const r of rules) {
+    const fieldName = (r.field && r.field.trim()) ? r.field.trim() : LEGACY_FIELD;
+    const value = readField(obj, fieldName);
+    const cooldownSec = int(r.cooldown_sec, defaultCooldownSec);
+
+    console.log(
+      `  [R] id=${r.id} field=${fieldName} op=${r.op} thr=${r.threshold_num ?? r.threshold_str} value=`,
+      value
+    );
+
+    if (value === undefined) {
+      console.log(`    -> champ "${fieldName}" absent. Champs disponibles =`, Object.keys(obj));
+      continue;
+    }
+
+    const isMatch = ruleMatches(value, r.op, r.threshold_num, r.threshold_str);
+    console.log('    -> match?', isMatch);
+    if (!isMatch) continue;
+
+    // Cooldown atomique
+    const { rows: claimed } = await q(
+      `INSERT INTO alert_state(rule_id, last_sent) VALUES($1, NOW())
+       ON CONFLICT (rule_id) DO UPDATE
+         SET last_sent = NOW()
+         WHERE alert_state.last_sent IS NULL
+            OR alert_state.last_sent + ($2::int * INTERVAL '1 second') < NOW()
+       RETURNING rule_id`,
+      [r.id, cooldownSec]
+    );
+    if (!claimed.length) {
+      console.log(`    -> cooldown actif (${cooldownSec}s), skip`);
+      continue;
+    }
+
+    // Métadonnées du champ (label + unité)
+    let fieldLabel = fieldName;
+    let fieldUnit  = '';
+    if (esp.device_type_id) {
+      const mqttCfg = await getMqttConfig();
+      const allFields = getAllFrameFields(mqttCfg, esp.device_type_id);
+      const fieldMeta = allFields.find(f => f.name.toLowerCase() === fieldName.toLowerCase());
+      if (fieldMeta) {
+        fieldLabel = fieldMeta.label || fieldName;
+        fieldUnit  = fieldMeta.unit  || '';
+      }
+    }
+
+    const thresholdDisplay =
+      (r.threshold_num != null && Number.isFinite(Number(r.threshold_num)))
+        ? String(r.threshold_num)
+        : String(r.threshold_str ?? '');
+
+    const tplVars = {
+      device_name:   deviceName,
+      field_name:    fieldName,
+      field_label:   fieldLabel,
+      unit:          fieldUnit,
+      op:            r.op,
+      threshold:     thresholdDisplay,
+      current_value: String(value),
+    };
+
+    const titleTpl = esp.notif_title_tpl || '{device_name} — Alerte !';
+    const bodyTpl  = esp.notif_body_tpl  || '{field_label} {op} {threshold} {unit} — valeur : {current_value} {unit}';
+
+    const title = renderTemplate(titleTpl, tplVars);
+    const body  = renderTemplate(bodyTpl,  tplVars);
+    const currentDisplayForBody = fieldUnit ? `${value} ${fieldUnit}` : String(value);
+
+    console.log('    [ALERT] title =', title);
+    console.log('    [ALERT] body  =', body);
+
+    // 7) Badge
+    const { rows: badgeRows } = await q(
+      `WITH up AS (
+         INSERT INTO user_badge(user_id, unread_count)
+         VALUES ($1, 1)
+         ON CONFLICT (user_id)
+         DO UPDATE SET unread_count = user_badge.unread_count + 1,
+                       updated_at   = now()
+         RETURNING unread_count
+       )
+       SELECT unread_count FROM up`,
+      [esp.user_id]
+    );
+    const badge = Number(badgeRows?.[0]?.unread_count || 1);
+
+    const pushData = {
+      badge, topic, chipid,
+      device_name: deviceName,
+      esp_id: esp.id,
+      rule_id: r.id,
+      field: fieldName,
+      op: r.op,
+      threshold_num: r.threshold_num,
+      threshold_str: r.threshold_str,
+      threshold_display: thresholdDisplay,
+      current_value: value,
+      current_display: currentDisplayForBody,
+    };
+
+    const pushResults = [];
+
+    for (const d of devices) {
+      const platform = String(d.platform || '').toLowerCase();
+      const isAndroid = platform.includes('android');
+
+      if (isAndroid) {
+        const res = await sendFCM(d.fcm_token, title, body, pushData);
+        console.log('    [FCM]', `device=${d.id}`, `ok=${res.ok}`,
+          res.ok ? `messageId=${res.messageId}` : `code=${res.code} msg=${res.message}`);
+        if (!res.ok && res.disableDevice) {
+          await q('UPDATE mobile_devices SET is_active=false WHERE id=$1', [d.id]);
+          console.warn('    [FCM] token invalidé → device désactivé', d.id);
+        }
+        pushResults.push({
+          device_id: d.id, platform: d.platform, channel: 'fcm',
+          ok: !!res.ok, messageId: res.messageId || null,
+          code: res.code || null, message: res.message || null,
+        });
+      } else {
+        const res = await sendAPNS(d.apns_token, title, body, pushData, { sandbox: !!d.sandbox });
+        console.log('    [APNS]', `device=${d.id}`, `env=${res.env}`,
+          `status=${res.status}`, `reason=${res.reason || 'none'}`, `apns-id=${res.apnsId || 'n/a'}`);
+        if (res.status === 410 || (res.status === 400 && /BadDeviceToken/i.test(res.body || ''))) {
+          await q('UPDATE mobile_devices SET is_active=false WHERE id=$1', [d.id]);
+          console.warn('    [APNS] token invalidé → device désactivé', d.id);
+        }
+        pushResults.push({
+          device_id: d.id, platform: d.platform, channel: 'apns',
+          ok: res.status === 200, env: res.env, status: res.status,
+          reason: res.reason || null, apnsId: res.apnsId || null,
+        });
+      }
+    }
+
+    // 7b) LOG alert_log
+    const anyOk = pushResults.some(r0 => r0.ok);
+    const status = anyOk ? 'sent' : 'failed';
+    const error = anyOk
+      ? null
+      : pushResults
+          .filter(r0 => !r0.ok)
+          .map(r0 => `device=${r0.device_id} ${r0.channel} ${r0.code || r0.status || 'fail'} ${r0.message || r0.reason || ''}`.trim())
+          .join(' | ')
+          .slice(0, 2000);
+
+    const alertPayload = {
+      title, body,
+      field: fieldName, op: r.op,
+      threshold_num: r.threshold_num, threshold_str: r.threshold_str,
+      threshold_display: thresholdDisplay,
+      current_value: value, current_display: currentDisplayForBody,
+      topic, chipid, device_name: deviceName,
+      esp_id: esp.id, rule_id: r.id,
+      push_results: pushResults,
+    };
+
+    await q(
+      `INSERT INTO alert_log (rule_id, esp_id, device_id, channel, status, payload, error)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)`,
+      [r.id, esp.id, chipid, 'push', status, JSON.stringify(alertPayload), error]
+    );
+    console.log('    -> alert logged in alert_log:', body);
+
+    // Rétention
+    await q(
+      `DELETE FROM alert_log al
+        WHERE al.device_id = $1
+          AND al.id NOT IN (
+            SELECT id FROM alert_log
+             WHERE device_id = $1
+             ORDER BY sent_at DESC
+             LIMIT $2
+          )`,
+      [chipid, ALERT_KEEP_PER_DEVICE]
+    );
+  }
 }
