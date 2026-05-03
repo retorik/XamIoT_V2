@@ -88,7 +88,7 @@ Réponses calibrées (≤ 300 caractères chacune sauf mention contraire) saisie
 
 | Section recherchée | Chemin |
 |---|---|
-| Accès à l'application (credentials testeur Google) | **Surveiller et améliorer** → **Règles et programmes** → **Contenu de l'application** → "Accès à l'application" → Gérer |
+| Accès à l'application (credentials testeur Google + instructions de test) | **Surveiller et améliorer** → **Règles et programmes** → **Contenu de l'application** → onglet **"Traitée"** → faire défiler la liste des 10 déclarations → ligne **"Accès à l'application"** → bouton **"Gérer"**. Chemin alternatif via le **Tableau de bord** (encadré "Configurer votre application" en bas, utile si l'interface évolue). |
 | Sécurité des données | **Surveiller et améliorer** → **Règles et programmes** → **Contenu de l'application** → "Sécurité des données" |
 | Fiche du Store (description, captures, icône) | **Accroître le nombre d'utilisateurs** → **Présence sur Google Play** → **Fiche principale du Store** |
 | Tests fermés (track alpha) | **Tester et publier** → **Tests** → **Tests fermés** → canal `alpha` |
