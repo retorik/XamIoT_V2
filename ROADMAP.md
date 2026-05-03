@@ -2,7 +2,7 @@
 
 ## En cours
 
-_(rien en cours)_
+- Mise en production Google Play — XamIoT SoundSense Android (`com.xamiot.soundsense`, `versionCode=3 / versionName=1.2.0`) : test fermé de 14 jours réalisé (12 testeurs), demande de publication en production soumise à Google. En attente de revue. Voir `docs/rapports/2026-05-03_mise-en-prod-google-play-android.md`.
 
 ## Prévu
 
