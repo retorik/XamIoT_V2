@@ -1014,7 +1014,18 @@ app.post('/auth/confirm-account-deletion', deletionLimiter, async (req, res) => 
   try {
     const { email, code } = req.body || {};
     const out = await confirmAccountDeletion(email, code);
-    res.json(out);
+    if (out.ok) {
+      q(
+        `INSERT INTO audit_logs (user_id, user_email, action, resource_type, resource_id, ip_address, user_agent, details)
+         VALUES ($1, $2, 'DELETE', 'user', $3, $4, $5, $6)`,
+        [
+          out.user_id, out.deleted_email, out.user_id,
+          getRealIp(req), req.headers['user-agent'] || null,
+          JSON.stringify({ deleted_email: out.deleted_email, reason: 'self_service_email_code' }),
+        ]
+      ).catch(err => console.error('[AUDIT] account self-deletion error:', err.message));
+    }
+    res.json({ ok: out.ok });
   } catch (e) {
     const status = e?.status || 500;
     res.status(status).json({ error: e?.message || 'confirmation_failed' });
@@ -1026,7 +1037,18 @@ app.delete('/me', requireAuth, async (req, res) => {
     const { confirm } = req.body || {};
     if (confirm !== 'DELETE') return res.status(400).json({ error: 'confirmation_required' });
     const out = await deleteMyAccount(req.user.sub);
-    res.json(out);
+    if (out.ok) {
+      q(
+        `INSERT INTO audit_logs (user_id, user_email, action, resource_type, resource_id, ip_address, user_agent, details)
+         VALUES ($1, $2, 'DELETE', 'user', $3, $4, $5, $6)`,
+        [
+          req.user.sub, req.user.email || out.deleted_email, req.user.sub,
+          getRealIp(req), req.headers['user-agent'] || null,
+          JSON.stringify({ deleted_email: out.deleted_email, reason: 'mobile_app' }),
+        ]
+      ).catch(err => console.error('[AUDIT] mobile self-deletion error:', err.message));
+    }
+    res.json({ ok: out.ok });
   } catch (e) {
     const status = e?.status || 500;
     res.status(status).json({ error: e?.message || 'account_delete_failed' });

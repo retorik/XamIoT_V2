@@ -468,10 +468,11 @@ export async function confirmAccountDeletion(email, code) {
   if (!email || !code) throw Object.assign(new Error('missing_fields'), { status: 400 });
 
   const emailNorm = email.trim().toLowerCase();
-  const { rows: users } = await q('SELECT id FROM users WHERE email=$1 LIMIT 1', [emailNorm]);
+  const { rows: users } = await q('SELECT id, email FROM users WHERE email=$1 LIMIT 1', [emailNorm]);
   if (!users.length) throw Object.assign(new Error('invalid_code'), { status: 400 });
 
   const userId = users[0].id;
+  const userEmail = users[0].email;
 
   const { rows } = await q(
     `SELECT id, code_hash FROM account_deletion_codes
@@ -485,7 +486,7 @@ export async function confirmAccountDeletion(email, code) {
     if (valid) {
       await q('UPDATE account_deletion_codes SET used_at=now() WHERE id=$1', [row.id]);
       const { rowCount } = await q('DELETE FROM users WHERE id=$1', [userId]);
-      return { ok: rowCount > 0 };
+      return { ok: rowCount > 0, user_id: userId, deleted_email: userEmail };
     }
   }
 
@@ -498,6 +499,8 @@ export async function confirmAccountDeletion(email, code) {
  * s'occupent du reste (esp_devices, alert_rules, mobile_devices, user_badge, password_resets, alert_log via trigger).
  */
 export async function deleteMyAccount(userId) {
+  const { rows: users } = await q('SELECT email FROM users WHERE id=$1', [userId]);
+  const deletedEmail = users[0]?.email || null;
   const { rowCount } = await q('DELETE FROM users WHERE id=$1', [userId]);
-  return { ok: rowCount > 0 };
+  return { ok: rowCount > 0, deleted_email: deletedEmail };
 }
