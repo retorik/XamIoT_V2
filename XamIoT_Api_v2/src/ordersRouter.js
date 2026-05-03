@@ -2,7 +2,7 @@
 import express from 'express';
 import { q } from './db.js';
 import { requireAuth } from './auth.js';
-import { createTransporter, buildFrom, isSmtpReady } from './smtp.js';
+import { createTransporter, buildFrom, isSmtpReady, recordSendOutcome } from './smtp.js';
 import { generateInvoicePdf } from './invoiceGenerator.js';
 import { dispatch, getStatusLabel } from './notifDispatcher.js';
 import { config } from './config.js';
@@ -524,9 +524,11 @@ publicOrdersRouter.post('/checkout/webhook', express.raw({ type: 'application/js
               html: htmlBody,
               attachments,
             });
+            recordSendOutcome(true);
           }
         } catch (mailErr) {
           console.error('[ORDER MAIL] Erreur envoi email confirmation :', mailErr.message);
+          recordSendOutcome(false, mailErr);
         }
       }
 

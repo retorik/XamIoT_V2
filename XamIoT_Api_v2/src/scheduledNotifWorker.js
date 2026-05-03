@@ -5,7 +5,7 @@
 import { q } from './db.js';
 import { sendAPNS } from './apns.js';
 import { sendFCM } from './fcm.js';
-import { createTransporter, buildFrom, isSmtpReady } from './smtp.js';
+import { createTransporter, buildFrom, isSmtpReady, recordSendOutcome } from './smtp.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -135,9 +135,11 @@ async function sendEmailBatch(notifId, emailAddresses, subject, html) {
         text: html.replace(/<[^>]+>/g, ''),
       });
       sent++;
+      recordSendOutcome(true);
       console.log(`[SCHEDULED][EMAIL] notif=${notifId} to=${u.email} ok=true`);
     } catch (e) {
       failed++;
+      recordSendOutcome(false, e);
       console.error(`[SCHEDULED][EMAIL] notif=${notifId} to=${u.email} error:`, e?.message || e);
     }
   }

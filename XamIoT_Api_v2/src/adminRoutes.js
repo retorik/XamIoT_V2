@@ -6,7 +6,7 @@ import { authLimiter as adminAuthLimiter, pollLimiter, reloadRateLimitConfig, ge
 import { reloadApnsConfig, sendAPNS, isApnsEnabled } from './apns.js';
 import { reloadFcmConfig, isFcmReady, sendFCM } from './fcm.js';
 import { reloadMqttConfig } from './mqttConfig.js';
-import { reloadSmtpConfig, isSmtpReady, getSmtpConfig, createTransporter, buildFrom } from './smtp.js';
+import { reloadSmtpConfig, isSmtpReady, isSmtpHealthy, getSmtpConfig, getSmtpHealth, recordSendOutcome, verifySmtpConnection, createTransporter, buildFrom } from './smtp.js';
 import { validateCampaignPayload, buildRecipientsFilter, aggregateSendResults } from './campaignService.js';
 import { dispatch } from './notifDispatcher.js';
 import { adminNotifRouter } from './adminNotifRouter.js';
@@ -611,10 +611,12 @@ adminRouter.delete('/fcm', async (req, res, next) => {
 adminRouter.get('/smtp', pollLimiter, async (req, res, next) => {
   try {
     const c = getSmtpConfig();
-    if (!c) return res.json({ configured: false, ready: false });
+    if (!c) return res.json({ configured: false, ready: false, healthy: false, health: getSmtpHealth() });
     res.json({
       configured: true,
       ready:      isSmtpReady(),
+      healthy:    isSmtpHealthy(),
+      health:     getSmtpHealth(),
       host:       c.host,
       port:       c.port,
       secure:     c.secure,
@@ -624,6 +626,14 @@ adminRouter.get('/smtp', pollLimiter, async (req, res, next) => {
       reply_to:   c.reply_to   || null,
       updated_at: c.updated_at || null,
     });
+  } catch (e) { next(e); }
+});
+
+// Verify on-demand (utile après changement de config) — relance immédiatement la mesure de santé
+adminRouter.post('/smtp/verify', async (req, res, next) => {
+  try {
+    const ok = await verifySmtpConnection();
+    res.json({ ok, health: getSmtpHealth() });
   } catch (e) { next(e); }
 });
 
@@ -651,6 +661,8 @@ adminRouter.post('/smtp', async (req, res, next) => {
       ]
     );
     await reloadSmtpConfig();
+    // Verify immédiat après changement de config — synchronise l'état de santé
+    verifySmtpConnection().catch(err => console.warn('[SMTP] verify post-update échoué:', err?.message));
     res.json({ ok: true, configured: true, ready: isSmtpReady() });
   } catch (e) { next(e); }
 });
@@ -661,16 +673,21 @@ adminRouter.post('/smtp/test', async (req, res, next) => {
     const { to } = req.body || {};
     if (!to) return res.status(400).json({ error: 'to_required' });
 
-    const { createTransporter, buildFrom } = await import('./smtp.js');
     const transporter = await createTransporter();
     if (!transporter) return res.status(500).json({ error: 'transporter_creation_failed' });
 
-    await transporter.sendMail({
-      from:    buildFrom(),
-      to,
-      subject: '[XamIoT] Test SMTP',
-      text:    'Ce message confirme que la configuration SMTP est fonctionnelle.',
-    });
+    try {
+      await transporter.sendMail({
+        from:    buildFrom(),
+        to,
+        subject: '[XamIoT] Test SMTP',
+        text:    'Ce message confirme que la configuration SMTP est fonctionnelle.',
+      });
+      recordSendOutcome(true);
+    } catch (sendErr) {
+      recordSendOutcome(false, sendErr);
+      throw sendErr;
+    }
     res.json({ ok: true });
   } catch (e) {
     // Retourner un message d'erreur lisible plutôt qu'un admin_internal_error générique
@@ -1859,8 +1876,10 @@ adminRouter.post('/campaigns/send', async (req, res, next) => {
             ...(html_body ? { html: html_body } : {}),
           });
           results.push({ channel: 'email', ok: true });
+          recordSendOutcome(true);
         } catch (e) {
           results.push({ channel: 'email', ok: false });
+          recordSendOutcome(false, e);
           if (errors.length < 50) errors.push({ channel: 'email', user_id: u.id, error: String(e?.message || e) });
         }
       }

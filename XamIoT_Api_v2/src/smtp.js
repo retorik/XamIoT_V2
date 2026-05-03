@@ -4,6 +4,17 @@ import { q } from './db.js';
 
 let _config = null; // null = non configuré
 
+// Suivi de santé SMTP — alimenté par les envois réels et par verifySmtpConnection().
+// Permet à la barre de surveillance de refléter l'état effectif (et non juste "config remplie").
+const _health = {
+  last_send_ok:     null,   // boolean | null
+  last_send_at:     null,   // ISO string | null
+  last_send_error:  null,   // string | null
+  last_verify_ok:   null,   // boolean | null
+  last_verify_at:   null,   // ISO string | null
+  last_verify_error: null,  // string | null
+};
+
 /**
  * Retourne true si secure doit être activé.
  * Port 465 = TLS implicite, sinon STARTTLS.
@@ -49,6 +60,64 @@ export async function reloadSmtpConfig() {
 
 export function isSmtpReady() {
   return _config !== null && !!_config.host && !!_config.from_email;
+}
+
+/**
+ * Santé effective : "ready" (config remplie) + dernier envoi/verify connu OK.
+ * Si on n'a aucune mesure (premier démarrage), on retourne true tant que la config est remplie
+ * pour ne pas afficher rouge à tort.
+ */
+export function isSmtpHealthy() {
+  if (!isSmtpReady()) return false;
+  if (_health.last_send_ok === false) return false;
+  if (_health.last_verify_ok === false) return false;
+  return true;
+}
+
+export function getSmtpHealth() {
+  return { ..._health };
+}
+
+/** Appelé après chaque tentative d'envoi pour tracker la santé. */
+export function recordSendOutcome(ok, error = null) {
+  _health.last_send_ok = !!ok;
+  _health.last_send_at = new Date().toISOString();
+  _health.last_send_error = ok ? null : (typeof error === 'string' ? error : (error?.message || error?.code || String(error)));
+}
+
+/**
+ * Vérifie la connexion + l'authentification SMTP sans envoyer de mail.
+ * Met à jour _health.last_verify_*.
+ * À appeler au démarrage et périodiquement (toutes les 24h).
+ */
+export async function verifySmtpConnection() {
+  if (!isSmtpReady()) {
+    _health.last_verify_ok = false;
+    _health.last_verify_at = new Date().toISOString();
+    _health.last_verify_error = 'not_configured';
+    return false;
+  }
+  const transporter = await createTransporter();
+  if (!transporter) {
+    _health.last_verify_ok = false;
+    _health.last_verify_at = new Date().toISOString();
+    _health.last_verify_error = 'transporter_unavailable';
+    return false;
+  }
+  try {
+    await transporter.verify();
+    _health.last_verify_ok = true;
+    _health.last_verify_at = new Date().toISOString();
+    _health.last_verify_error = null;
+    console.log('[SMTP] verify OK');
+    return true;
+  } catch (e) {
+    _health.last_verify_ok = false;
+    _health.last_verify_at = new Date().toISOString();
+    _health.last_verify_error = e?.code || e?.message || String(e);
+    console.warn('[SMTP] verify FAILED:', _health.last_verify_error);
+    return false;
+  }
 }
 
 export function getSmtpConfig() {

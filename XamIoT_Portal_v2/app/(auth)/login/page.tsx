@@ -22,6 +22,10 @@ const T = {
     idle: 'Vous avez été déconnecté pour inactivité.',
     error_credentials: 'Identifiants invalides',
     error_generic: 'Une erreur est survenue. Veuillez réessayer.',
+    error_inactive: 'Votre compte n\'est pas encore activé. Vérifiez votre boîte mail (et vos spams) pour le lien d\'activation.',
+    resend_activation: 'Renvoyer l\'email d\'activation',
+    resend_sending: 'Envoi…',
+    resend_sent: 'Si un compte existe avec cet email, un nouveau lien d\'activation vient d\'être envoyé.',
     reset_title: 'Réinitialiser le mot de passe',
     reset_desc: 'Le lien envoyé par email est valable 15 minutes et à usage unique.',
     reset_sent: 'Si un compte existe avec cet email, un lien de réinitialisation vous a été envoyé.',
@@ -42,6 +46,10 @@ const T = {
     idle: 'You were signed out due to inactivity.',
     error_credentials: 'Invalid credentials',
     error_generic: 'An error occurred. Please try again.',
+    error_inactive: 'Your account is not yet activated. Please check your inbox (and spam folder) for the activation link.',
+    resend_activation: 'Resend activation email',
+    resend_sending: 'Sending…',
+    resend_sent: 'If an account exists with this email, a new activation link has just been sent.',
     reset_title: 'Reset password',
     reset_desc: 'The link sent by email is valid for 15 minutes and can only be used once.',
     reset_sent: 'If an account exists with this email, a reset link has been sent.',
@@ -62,6 +70,10 @@ const T = {
     idle: 'Se cerró su sesión por inactividad.',
     error_credentials: 'Credenciales inválidas',
     error_generic: 'Se produjo un error. Por favor, inténtelo de nuevo.',
+    error_inactive: 'Su cuenta aún no está activada. Compruebe su bandeja de entrada (y la carpeta de spam) para encontrar el enlace de activación.',
+    resend_activation: 'Reenviar correo de activación',
+    resend_sending: 'Enviando…',
+    resend_sent: 'Si existe una cuenta con este correo, se acaba de enviar un nuevo enlace de activación.',
     reset_title: 'Restablecer contraseña',
     reset_desc: 'El enlace enviado por correo es válido 15 minutos y de un solo uso.',
     reset_sent: 'Si existe una cuenta con este correo, se ha enviado un enlace de restablecimiento.',
@@ -90,6 +102,9 @@ function LoginForm() {
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [accountInactive, setAccountInactive] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
 
   const lang = useLang();
   const t = T[lang];
@@ -109,9 +124,26 @@ function LoginForm() {
     }
   }
 
+  async function handleResendActivation() {
+    if (!email || resendLoading) return;
+    setResendLoading(true);
+    try {
+      await fetch(`${API_BASE}/auth/resend-activation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+    } finally {
+      setResendLoading(false);
+      setResendSent(true);
+    }
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    setAccountInactive(false);
+    setResendSent(false);
     setLoading(true);
 
     try {
@@ -123,7 +155,12 @@ function LoginForm() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || t.error_credentials);
+        if (data.error === 'account_inactive') {
+          setAccountInactive(true);
+          setError('');
+        } else {
+          setError(data.error === 'invalid_credentials' || !data.error ? t.error_credentials : t.error_credentials);
+        }
         return;
       }
 
@@ -204,6 +241,24 @@ function LoginForm() {
               {error && (
                 <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
                   {error}
+                </div>
+              )}
+
+              {accountInactive && (
+                <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 space-y-3">
+                  <p>{t.error_inactive}</p>
+                  {resendSent ? (
+                    <p className="text-amber-700">{t.resend_sent}</p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResendActivation}
+                      disabled={resendLoading}
+                      className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 text-white font-medium rounded-md transition text-sm"
+                    >
+                      {resendLoading ? t.resend_sending : t.resend_activation}
+                    </button>
+                  )}
                 </div>
               )}
 

@@ -6,7 +6,7 @@
 import { q } from './db.js';
 import { sendAPNS } from './apns.js';
 import { sendFCM } from './fcm.js';
-import { createTransporter, buildFrom, isSmtpReady } from './smtp.js';
+import { createTransporter, buildFrom, isSmtpReady, recordSendOutcome } from './smtp.js';
 
 // ─── Libellés pour les statuts ───────────────────────────────────────────────
 
@@ -126,8 +126,10 @@ async function sendEmailTo(toAddresses, subject, htmlBody) {
     try {
       await transporter.sendMail({ from: buildFrom(), to, subject, html: htmlBody, text: htmlBody.replace(/<[^>]+>/g, '') });
       results.push({ to, ok: true });
+      recordSendOutcome(true);
     } catch (e) {
       results.push({ to, ok: false, error: String(e?.message || e) });
+      recordSendOutcome(false, e);
     }
   }
   return results;

@@ -112,7 +112,12 @@ function ServiceStatusBar() {
 
     try {
       const smtpData = await apiFetch('/admin/smtp');
-      next.smtp = smtpData?.configured ? (smtpData?.ready ? 'ok' : 'error') : 'unconfigured';
+      // healthy = config remplie + dernier envoi/verify connu OK
+      // ready = config remplie (ancien comportement, garde-fou si healthy absent)
+      if (!smtpData?.configured) next.smtp = 'unconfigured';
+      else if (smtpData?.healthy === false) next.smtp = 'error';
+      else if (smtpData?.healthy === true) next.smtp = 'ok';
+      else next.smtp = smtpData?.ready ? 'ok' : 'error';
     } catch { next.smtp = 'error'; }
 
     try {

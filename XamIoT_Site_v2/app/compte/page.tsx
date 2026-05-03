@@ -111,6 +111,7 @@ export default function ComptePage() {
   const [tab, setTab] = useState<Tab>('login');
   const [status, setStatus] = useState<Status>('idle');
   const [msg, setMsg] = useState('');
+  const [showResend, setShowResend] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [loggedInUser, setLoggedInUser] = useState<{ email: string; first_name?: string; last_name?: string } | null>(null);
 
@@ -155,7 +156,7 @@ export default function ComptePage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!email || !password) { setMsg(T.err_fields); setStatus('error'); return; }
-    setStatus('loading'); setMsg('');
+    setStatus('loading'); setMsg(''); setShowResend(false);
     try {
       const data = await authLogin(email, password);
       setToken(data.token);
@@ -165,7 +166,7 @@ export default function ComptePage() {
       setTimeout(() => router.push(pending ? '/checkout' : '/boutique'), 300);
     } catch (err: any) {
       setStatus('error');
-      if (err?.error === 'account_inactive') setMsg(T.err_inactive);
+      if (err?.error === 'account_inactive') { setMsg(T.err_inactive); setShowResend(true); }
       else if (err?.error === 'invalid_credentials') setMsg(T.err_invalid);
       else if (err?.error === 'auth' || err?.error === 'portal_login' || err?.error === 'global') setMsg(T.err_rate_limit);
       else setMsg(err?.message || T.err_generic);
@@ -278,7 +279,7 @@ export default function ComptePage() {
           status === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-blue-50 text-blue-700'
         }`}>
           {msg}
-          {status === 'verify' && (
+          {(status === 'verify' || showResend) && (
             <button onClick={handleResend} className="block mt-2 text-blue-600 underline text-xs">
               {T.resend}
             </button>

@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import argon2 from 'argon2';
 import crypto from 'crypto';
 import { q } from './db.js';
-import { createTransporter, buildFrom, isSmtpReady } from './smtp.js';
+import { createTransporter, buildFrom, isSmtpReady, recordSendOutcome } from './smtp.js';
 import { config } from './config.js';
 import { dispatch } from './notifDispatcher.js';
 export { renderActivationPage } from './activation-template.js';
@@ -58,9 +58,11 @@ async function sendActivationEmail(to, url) {
         </div>
       `,
     });
+    recordSendOutcome(true);
     return true;
   } catch (e) {
     console.error('[ACTIVATION] Échec SMTP:', e?.code || e?.name || e, e?.response || '');
+    recordSendOutcome(false, e);
     return false;
   }
 }
@@ -91,9 +93,11 @@ async function sendResetEmail(to, url, expiresHuman = RESET_EXPIRES) {
         </div>
       `,
     });
+    recordSendOutcome(true);
     return true;
   } catch (e) {
     console.error('[RESET] Échec SMTP:', e?.code || e?.name || e, e?.response || '');
+    recordSendOutcome(false, e);
     return false;
   }
 }
@@ -422,9 +426,11 @@ async function sendDeletionEmail(to, code, linkUrl) {
         </div>
       `,
     });
+    recordSendOutcome(true);
     return true;
   } catch (e) {
     console.error('[DELETE_ACCOUNT] Échec SMTP:', e?.code || e?.name || e, e?.response || '');
+    recordSendOutcome(false, e);
     return false;
   }
 }

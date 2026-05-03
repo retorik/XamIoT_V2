@@ -32,7 +32,7 @@ import { addressesRouter } from './addressesRouter.js';
 import { config } from './config.js';
 import { reloadApnsConfig } from './apns.js';
 import { reloadFcmConfig } from './fcm.js';
-import { reloadSmtpConfig, createTransporter, buildFrom } from './smtp.js';
+import { reloadSmtpConfig, createTransporter, buildFrom, recordSendOutcome, verifySmtpConnection } from './smtp.js';
 import { globalLimiter, adminLimiter, authLimiter, pollLimiter, contactLimiter, portalLoginLimiter, deletionLimiter, appLimiter, reloadRateLimitConfig } from './rateLimitManager.js';
 import path from 'path';
 import fs from 'fs';
@@ -1123,10 +1123,12 @@ app.post('/public/contact', contactLimiter, async (req, res) => {
       text:    `Prénom: ${firstName}\nNom: ${lastName}\nTéléphone: ${phone}\nEmail: ${email}\n\n${message}`,
       html:    htmlBody,
     });
+    recordSendOutcome(true);
 
     res.json({ ok: true });
   } catch (e) {
     console.error('[CONTACT] sendMail error:', e.message);
+    recordSendOutcome(false, e);
     res.status(500).json({ error: 'send_failed' });
   }
 });
@@ -1254,6 +1256,9 @@ app.listen(config.port, async () => {
   await reloadApnsConfig();
   await reloadFcmConfig();
   await reloadSmtpConfig();
+  // Verify SMTP au démarrage (non bloquant) + boucle 24h
+  verifySmtpConnection().catch(() => {});
+  setInterval(() => verifySmtpConnection().catch(() => {}), 24 * 60 * 60 * 1000);
   startWorker();
   startRetentionPurge();
   startNotifWorkers();

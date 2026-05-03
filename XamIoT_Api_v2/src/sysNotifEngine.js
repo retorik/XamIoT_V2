@@ -5,7 +5,7 @@
 import { q } from './db.js';
 import { sendAPNS } from './apns.js';
 import { sendFCM } from './fcm.js';
-import { createTransporter, buildFrom, isSmtpReady } from './smtp.js';
+import { createTransporter, buildFrom, isSmtpReady, recordSendOutcome } from './smtp.js';
 
 // Inline ruleMatches — évite la dépendance circulaire avec mqttWorker.js
 function ruleMatches(value, op, thresholdNum, thresholdStr) {
@@ -104,8 +104,10 @@ async function sendEmailToUser(userId, subject, htmlBody) {
       html: htmlBody,
       text: htmlBody.replace(/<[^>]+>/g, ''),
     });
+    recordSendOutcome(true);
     return { ok: true, to: rows[0].email };
   } catch (e) {
+    recordSendOutcome(false, e);
     return { ok: false, to: rows[0].email, error: String(e?.message || e) };
   }
 }
